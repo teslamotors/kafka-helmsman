@@ -1,0 +1,12 @@
+STOP!
+----
+THIS IS A BAZEL DIRECTORY 
+DO NOT USE FOR ANY OTHER PURPOSE
+
+WHY SO BADLY NAMED?
+------------------
+
+tools/build_rules IS HARDCODED IN BAZEL
+See:
+bazel/src/main/java/com/google/devtools/build/lib/bazel/rules/BazelRuleClassProvider.java
+
