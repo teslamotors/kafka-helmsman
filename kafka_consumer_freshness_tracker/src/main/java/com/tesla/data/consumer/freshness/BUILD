@@ -21,6 +21,7 @@ java_library(
 java_binary(
     name = "ConsumerFreshness",
     main_class = "com.tesla.data.consumer.freshness.ConsumerFreshness",
+    visibility = ["//visibility:public"],
     runtime_deps = [
         ":freshness",
         "//3rdparty/jvm/ch/qos/logback:logback_classic",

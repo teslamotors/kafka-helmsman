@@ -28,6 +28,7 @@ java_library(
 java_binary(
     name = "Main",
     main_class = "com.tesla.data.topic.enforcer.Main",
+    visibility = ["//visibility:public"],
     runtime_deps = [
         ":enforcer",
         "//3rdparty/jvm/ch/qos/logback:logback_classic",
