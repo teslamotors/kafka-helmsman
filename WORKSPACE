@@ -4,12 +4,13 @@ load("//3rdparty:workspace.bzl", "maven_dependencies")
 
 maven_dependencies()
 
-# Shaded jars
+bazel_jar_jar_version = "16e48f319048e090a2fe7fd39a794312d191fc6f"
+
 http_archive(
     name = "com_github_johnynek_bazel_jar_jar",
-    sha256 = "89187b4b5de0fdc058fe5f96e96c4232e409ef6bac42da609ad57238ae00bd0d",
-    strip_prefix = "bazel_jar_jar-master",
-    url = "https://github.com/johnynek/bazel_jar_jar/archive/master.zip",
+    sha256 = "ee227e7f304e9b7f26d033af677f31066f68b1c94ee8f8d04fbecfb371c3caef",
+    strip_prefix = "bazel_jar_jar-%s" % bazel_jar_jar_version,
+    url = "https://github.com/johnynek/bazel_jar_jar/archive/%s.zip" % bazel_jar_jar_version,
 )
 
 load("@com_github_johnynek_bazel_jar_jar//:jar_jar.bzl", "jar_jar_repositories")
