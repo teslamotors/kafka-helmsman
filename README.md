@@ -40,6 +40,17 @@ bazel build //...:all
 
 > Note: In bazel, target spec `//..:all` indicates all rules in all packages beneath workspace, thus `bazel build //...:all` implies build everything.
 
+### Intellij
+
+If you are using Intellij + Bazel, you can import the project directly with:
+ * File -> Import Bazel Project
+ * Select kafka-helmsman from where you cloned it locally
+ * Select "Import project view file" and select the `ij.bazelproject` file
+ * Select "Finish" with Infer from: Workspace (the default selection)
+
+The newest version of Intellij does not play nicely with Bazel (and its plugins). We recommend using Intellij 2018.3.6 
+with Bazel plugin version v2019.04.15.0.5
+
 ## Python
 
 ### Dependencies

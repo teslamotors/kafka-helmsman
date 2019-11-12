@@ -1,0 +1,16 @@
+directories:
+  .
+  -bazel-bin
+  -bazel-dataworks
+  -bazel-genfiles
+  -bazel-out
+  -bazel-testlogs
+
+targets:
+  //...:all
+
+java_language_level: 8
+
+additional_languages:
+  scala
+
