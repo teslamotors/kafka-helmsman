@@ -2,15 +2,7 @@ package(default_visibility = ["//:__subpackages__"])
 
 java_library(
     name = "enforcer",
-    srcs = [
-        "ConfigDrift.java",
-        "ConfiguredTopic.java",
-        "Enforcer.java",
-        "EnforcerMetrics.java",
-        "Main.java",
-        "TopicService.java",
-        "TopicServiceImpl.java",
-    ],
+    srcs = glob(["*.java"]),
     deps = [
         "//3rdparty/jvm/com/beust:jcommander",
         "//3rdparty/jvm/com/fasterxml/jackson/core:jackson_core",
