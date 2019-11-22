@@ -14,8 +14,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -27,6 +29,7 @@ public class Enforcer {
   private final TopicService topicService;
   private final List<ConfiguredTopic> configuredTopics;
   private final ConfigDrift configDrift;
+  private final Set<Result> configDriftSafetyFilters;
 
   // if safemode is set to true, operations such as delete are not performed
   private final boolean safemode;
@@ -36,17 +39,23 @@ public class Enforcer {
   // we do not allow more than this % of topics to be deleted in a single run
   private static final float PERMISSIBLE_DELETION_THRESHOLD = 0.50f;
 
-  public Enforcer(TopicService topicService, List<ConfiguredTopic> configuredTopics, boolean safemode) {
+  public Enforcer(TopicService topicService, List<ConfiguredTopic> configuredTopics,
+                  ConfigDrift configDrift, boolean safemode) {
     if (!passesSanityCheck(configuredTopics)) {
       throw new IllegalArgumentException("Invalid configuration");
     }
     checkArgument(safemode || configuredTopics.size() != 0,
         "Configured topics should not be empty if safemode if off");
-    this.safemode = safemode;
     this.topicService = topicService;
-    this.configuredTopics = Collections.unmodifiableList(configuredTopics);
-    //TODO: Allow ConfigDrift params to be injected here through top level app configuration
-    this.configDrift = new ConfigDrift();
+    this.configuredTopics = configuredTopics;
+    this.configDrift = configDrift;
+    this.safemode = safemode;
+    this.configDriftSafetyFilters = safemode ? EnumSet.of(Result.SAFE_DRIFT) :
+        EnumSet.of(Result.SAFE_DRIFT, Result.UNSAFE_DRIFT);
+  }
+
+  public Enforcer(TopicService topicService, List<ConfiguredTopic> configuredTopics, boolean safemode) {
+    this(topicService, configuredTopics, new ConfigDrift(), safemode);
   }
 
   /**
@@ -110,10 +119,10 @@ public class Enforcer {
    * The returned list will have topic represented in the 'configured' aka 'desired' form.
    *
    * @param type the mode in which to perform config drift check, see {@link ConfigDrift.Type}
-   * @param safetyFilter a filter to apply on result of drift check, see {@link ConfigDrift.Result}
+   * @param safetyFilters a set of filters to apply on result of drift check, see {@link ConfigDrift.Result}
    * @return a list containing topics whose config has drifted
    */
-  public List<ConfiguredTopic> topicsWithConfigDrift(Type type, Result safetyFilter) {
+  public List<ConfiguredTopic> topicsWithConfigDrift(Type type, Set<Result> safetyFilters) {
     if (this.configuredTopics.isEmpty()) {
       return Collections.emptyList();
     }
@@ -122,11 +131,19 @@ public class Enforcer {
         this.configuredTopics
             .stream()
             .filter(t -> existing.containsKey(t.getName()))
-            .peek(t -> LOG.debug("Config drift result for topic {}, in mode {}, is: {}",
-                t.getName(), type, configDrift.check(t, existing.get(t.getName()), type)))
-            .filter(t -> configDrift.check(t, existing.get(t.getName()), type).equals(safetyFilter))
+            .filter(t -> {
+              Result result = configDrift.check(t, existing.get(t.getName()), type);
+              if (!Result.NO_DRIFT.equals(result)) {
+                LOG.info("Found {} for topic {}, in {} drift detection mode", result, t.getName(), type);
+              }
+              return safetyFilters.contains(result);
+            })
             .collect(Collectors.toList())
     );
+  }
+
+  private List<ConfiguredTopic> topicsWithConfigDrift(Type type, Result safetyFilter) {
+    return topicsWithConfigDrift(type, EnumSet.of(safetyFilter));
   }
 
   /**
@@ -135,7 +152,7 @@ public class Enforcer {
    * @return a list of topics for which partitions were increased
    */
   public List<ConfiguredTopic> increasePartitions() {
-    List<ConfiguredTopic> toIncrease = topicsWithConfigDrift(Type.PARTITION_COUNT, Result.SAFE_DRIFT);
+    List<ConfiguredTopic> toIncrease = topicsWithConfigDrift(Type.PARTITION_COUNT, configDriftSafetyFilters);
     if (!toIncrease.isEmpty()) {
       LOG.info("Increasing partitions for {} topics: {}", toIncrease.size(), toIncrease);
       topicService.increasePartitions(toIncrease);
@@ -151,7 +168,7 @@ public class Enforcer {
    * @return a list of topics which were altered
    */
   public List<ConfiguredTopic> alterConfiguration() {
-    List<ConfiguredTopic> toAlter = topicsWithConfigDrift(Type.TOPIC_CONFIG, Result.SAFE_DRIFT);
+    List<ConfiguredTopic> toAlter = topicsWithConfigDrift(Type.TOPIC_CONFIG, configDriftSafetyFilters);
     if (!toAlter.isEmpty()) {
       LOG.info("Altering topic configuration for {} topics: {}", toAlter.size(), toAlter);
       topicService.alterConfiguration(toAlter);

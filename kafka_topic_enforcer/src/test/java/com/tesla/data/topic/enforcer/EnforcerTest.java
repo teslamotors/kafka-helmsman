@@ -198,4 +198,31 @@ public class EnforcerTest {
     enforcer.deleteUnexpectedTopics();
   }
 
+  @Test
+  public void testPartitionIncreaseUnSafeMode() {
+    List<ConfiguredTopic> configured = Collections.singletonList(
+        new ConfiguredTopic("a", 1000, (short) 3, Collections.emptyMap()));
+    Map<String, ConfiguredTopic> existing = Collections.singletonMap("a",
+        new ConfiguredTopic("a", 100, (short) 3, Collections.emptyMap()));
+    when(service.listExisting(true)).thenReturn(existing);
+    enforcer = new Enforcer(service, configured, false);
+    Assert.assertEquals("aggressive partition count increase must be allowed in unsafe mode", configured,
+        enforcer.increasePartitions());
+  }
+
+  @Test
+  public void testConfigUpdateUnSafeMode() {
+    Map<String, String> risky = Collections.singletonMap("high_risk", "true");
+    List<ConfiguredTopic> configured = Collections.singletonList(
+        new ConfiguredTopic("a", 10, (short) 3, risky));
+    Map<String, ConfiguredTopic> existing = Collections.singletonMap("a",
+        new ConfiguredTopic("a", 10, (short) 3, Collections.emptyMap()));
+    when(service.listExisting(true)).thenReturn(existing);
+
+    // attempt a risk config change, it should go through
+    enforcer = new Enforcer(service, configured,
+        new ConfigDrift(10, 100, 0.25f, risky.keySet()), false);
+    Assert.assertEquals("risky config must be allowed in unsafe mode", configured, enforcer.alterConfiguration());
+  }
+
 }

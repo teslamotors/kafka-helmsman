@@ -40,6 +40,7 @@ java_test(
         "EnforcerTest.java",
     ],
     deps = [
+        "//3rdparty/jvm/ch/qos/logback:logback_classic",
         "//3rdparty/jvm/org/mockito:mockito_core",
         "//kafka_topic_enforcer/src/main/java/com/tesla/data/topic/enforcer",
     ],
