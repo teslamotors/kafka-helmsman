@@ -120,9 +120,10 @@ public class Enforcer {
    *
    * @param type the mode in which to perform config drift check, see {@link ConfigDrift.Type}
    * @param safetyFilters a set of filters to apply on result of drift check, see {@link ConfigDrift.Result}
+   * @param logResults if set to true, log config drift check results
    * @return a list containing topics whose config has drifted
    */
-  public List<ConfiguredTopic> topicsWithConfigDrift(Type type, Set<Result> safetyFilters) {
+  public List<ConfiguredTopic> topicsWithConfigDrift(Type type, Set<Result> safetyFilters, boolean logResults) {
     if (this.configuredTopics.isEmpty()) {
       return Collections.emptyList();
     }
@@ -133,7 +134,7 @@ public class Enforcer {
             .filter(t -> existing.containsKey(t.getName()))
             .filter(t -> {
               Result result = configDrift.check(t, existing.get(t.getName()), type);
-              if (!Result.NO_DRIFT.equals(result)) {
+              if (logResults && !Result.NO_DRIFT.equals(result)) {
                 LOG.info("Found {} for topic {}, in {} drift detection mode", result, t.getName(), type);
               }
               return safetyFilters.contains(result);
@@ -143,7 +144,7 @@ public class Enforcer {
   }
 
   private List<ConfiguredTopic> topicsWithConfigDrift(Type type, Result safetyFilter) {
-    return topicsWithConfigDrift(type, EnumSet.of(safetyFilter));
+    return topicsWithConfigDrift(type, EnumSet.of(safetyFilter), false);
   }
 
   /**
@@ -152,7 +153,7 @@ public class Enforcer {
    * @return a list of topics for which partitions were increased
    */
   public List<ConfiguredTopic> increasePartitions() {
-    List<ConfiguredTopic> toIncrease = topicsWithConfigDrift(Type.PARTITION_COUNT, configDriftSafetyFilters);
+    List<ConfiguredTopic> toIncrease = topicsWithConfigDrift(Type.PARTITION_COUNT, configDriftSafetyFilters, true);
     if (!toIncrease.isEmpty()) {
       LOG.info("Increasing partitions for {} topics: {}", toIncrease.size(), toIncrease);
       topicService.increasePartitions(toIncrease);
@@ -168,7 +169,7 @@ public class Enforcer {
    * @return a list of topics which were altered
    */
   public List<ConfiguredTopic> alterConfiguration() {
-    List<ConfiguredTopic> toAlter = topicsWithConfigDrift(Type.TOPIC_CONFIG, configDriftSafetyFilters);
+    List<ConfiguredTopic> toAlter = topicsWithConfigDrift(Type.TOPIC_CONFIG, configDriftSafetyFilters, true);
     if (!toAlter.isEmpty()) {
       LOG.info("Altering topic configuration for {} topics: {}", toAlter.size(), toAlter);
       topicService.alterConfiguration(toAlter);
