@@ -39,7 +39,7 @@ public class KafkaClientKeystores {
   private static final String CA_ROOT_CERT_NAME = "caroot";
 
   // bouncycastle is not thread safe, but that's ok since this is just accessed from command line
-  private static final CertificateFactory certFactory;
+  static final CertificateFactory certFactory;
 
   static {
     Security.addProvider(new BouncyCastleProvider());
@@ -55,6 +55,14 @@ public class KafkaClientKeystores {
 
   public KafkaClientKeystores(String password) {
     this.password = password.toCharArray();
+  }
+
+  /**
+   * Create the keystore from the configuration.
+   */
+  public KeyStore createKeystore(KeystoreConfig conf) throws IOException, CertificateException,
+      NoSuchAlgorithmException, KeyStoreException {
+    return this.createKeystore(conf.key(), conf.certificate(), conf.caChain());
   }
 
   /**
@@ -88,25 +96,36 @@ public class KafkaClientKeystores {
   }
 
   /**
+   * Create a truststore from the {@link KeystoreConfig}. If the {@link KeystoreConfig#issuingCa} is not present, uses
+   * the first certificate (the end of the chain, i.e. the CA with the lowest authority) as the Issuing CA. Any
+   * certificates that are signed by the issuing CA are considered trusted and will be authenticated correctly.
+   *
+   * @return a Keystore that trusts (i.e. a truststore) any certificate signed by the configured certificate authority
+  */
+  public KeyStore createTruststore(KeystoreConfig conf) throws IOException, CertificateException, KeyStoreException,
+      NoSuchAlgorithmException {
+    InputStream is = conf.issuingCa().orElse(conf.caChain());
+    List<X509Certificate> chain = readCertificateChain(certFactory, is);
+    return createTruststore(chain.get(0));
+  }
+
+  /**
    * Create keystore for the certificates that the client client should trust. Any certificates that are signed by
-   * the issuing CA whose certificate is added below are considered trusted entities and will be authenticated
+   * the issuing CA (whose certificate is added here) are considered trusted entities and will be authenticated
    * correctly.
    *
-   * @param issuingCa certificate for the issuing CA
+   * @param certificate certificate for the issuing CA whose signed certificates should be trusted
    */
-  public KeyStore createTruststore(InputStream issuingCa) throws KeyStoreException, CertificateException, IOException,
-      NoSuchAlgorithmException {
+  public KeyStore createTruststore(X509Certificate certificate) throws KeyStoreException, CertificateException,
+      IOException, NoSuchAlgorithmException {
     KeyStore truststore = KeyStore.getInstance(JAVA_KEYSTORE);
     truststore.load(null, password);
 
-    // we just need to trust the issuing CA for all connections
-    X509Certificate certificate =
-        (X509Certificate) certFactory.generateCertificate(issuingCa);
     truststore.setCertificateEntry(CA_ROOT_CERT_NAME, certificate);
     return truststore;
   }
 
-  private static List<X509Certificate> readCertificateChain(CertificateFactory factory, InputStream is)
+  public static List<X509Certificate> readCertificateChain(CertificateFactory factory, InputStream is)
       throws IOException, CertificateException {
     List<X509Certificate> certs = new ArrayList<>();
     while (is.available() > 0) {
@@ -161,11 +180,11 @@ public class KafkaClientKeystores {
     KafkaClientKeystores keystores = new KafkaClientKeystores(password);
 
     Optional<String> directory = Optional.ofNullable(conf.directory);
-    KeyStore ks = keystores.createKeystore(conf.key(), conf.certificate(), conf.caChain());
+    KeyStore ks = keystores.createKeystore(conf);
     byte[] keystore = keystores.writeStore(directory, "keystore", ks);
     conf.setKeystore(keystore);
 
-    KeyStore truststore = keystores.createTruststore(conf.issuingCa());
+    KeyStore truststore = keystores.createTruststore(conf);
     keystore = keystores.writeStore(directory, "truststore", truststore);
     conf.setTruststore(keystore);
 
