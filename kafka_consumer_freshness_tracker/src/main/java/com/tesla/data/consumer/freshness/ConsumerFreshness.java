@@ -226,6 +226,7 @@ public class ConsumerFreshness {
 
             @Override
             public void onFailure(Throwable throwable) {
+              metrics.error.labels(client.getCluster(), consumerGroup);
               workers.add(worker);
             }
           }, this.executor);
