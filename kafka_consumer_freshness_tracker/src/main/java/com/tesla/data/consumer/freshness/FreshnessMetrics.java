@@ -36,6 +36,11 @@ public class FreshnessMetrics {
       .help("Number of offsets that loaded from Kafka but were found to be invalid (producer sent invalid timestamp?)")
       .labelNames("cluster", "consumer")
       .create();
+  Counter error = new Counter.Builder()
+      .name("kafka_consumer_freshness_runtime_query_exception")
+      .help("Number of Kafka queries that threw an exception")
+      .labelNames("cluster", "consumer")
+      .create();
   Counter burrowClustersReadFailed = new Counter.Builder()
       .name("kafka_consumer_freshness_runtime_failed_burrow_clusters_read")
       .help("Number of times we failed to lookup the clusters from burrow")
@@ -55,7 +60,7 @@ public class FreshnessMetrics {
 
   public void register() {
     for (SimpleCollector collector :
-        newArrayList(elapsed, missing, kafkaRead, failed, invalid, freshness, kafkaQueryLatency)) {
+        newArrayList(elapsed, missing, kafkaRead, failed, invalid, error, freshness, kafkaQueryLatency)) {
       collector.register();
     }
   }
