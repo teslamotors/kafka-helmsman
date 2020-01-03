@@ -125,7 +125,7 @@ public class KafkaClientKeystores {
    * @param store keystore to write
    * @return the bytes of the keystore
    */
-  private byte[] writeStore(Optional<String> directory, String type, KeyStore store) throws IOException,
+  public byte[] writeStore(Optional<String> directory, String type, KeyStore store) throws IOException,
       CertificateException,
       NoSuchAlgorithmException, KeyStoreException {
     try (ByteArrayOutputStream bos = new ByteArrayOutputStream()) {
