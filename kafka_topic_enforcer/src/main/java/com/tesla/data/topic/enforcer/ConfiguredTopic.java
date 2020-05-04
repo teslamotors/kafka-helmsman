@@ -23,6 +23,10 @@ public class ConfiguredTopic {
   private final short replicationFactor;
   private final Map<String, String> config;
 
+  // Only meant for cosmetic labeling of a topic in the enforcer config, its not passed to the
+  // brokers
+  private Map<String, Object> tags = new HashMap<>();
+
   public ConfiguredTopic(String name, int partitions,
                          short replicationFactor, Map<String, String> config) {
     this.name = checkNotNull(name, "topic name should be non null");
@@ -50,6 +54,16 @@ public class ConfiguredTopic {
     return config;
   }
 
+  public Map<String, Object> getTags() {
+    return tags;
+  }
+
+  // Unlike the mandatory fields, optional fields needs a setter
+  // see https://github.com/FasterXML/jackson-modules-java8/tree/master/parameter-names
+  public void setTags(Map<String, Object> tags) {
+    this.tags = tags;
+  }
+
   @Override
   public String toString() {
     return MoreObjects.toStringHelper(this)
@@ -57,6 +71,7 @@ public class ConfiguredTopic {
         .add("partitions", partitions)
         .add("replicationFactor", replicationFactor)
         .add("config", config)
+        .add("tags", tags)
         .toString();
   }
 
