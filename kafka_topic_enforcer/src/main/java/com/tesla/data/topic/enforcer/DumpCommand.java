@@ -13,7 +13,9 @@ import java.util.Collection;
 import java.util.Comparator;
 import java.util.stream.Collectors;
 
-@Parameters(commandDescription = "Dump existing cluster config on stdout")
+@Parameters(commandDescription = "Dump existing cluster config on stdout. " +
+    "A subset of topic config is not serialized on the server side and that would be missing in " +
+    "the dump output, example: topic tags.")
 public class DumpCommand extends BaseCommand {
 
   @Override
