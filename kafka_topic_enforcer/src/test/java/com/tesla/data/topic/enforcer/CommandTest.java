@@ -13,25 +13,32 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.Charset;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
 public class CommandTest {
 
-  private String testConf = "---\n" +
-      "kafka:\n" +
-      "    bootstrap.servers: localhost:9092\n" +
-      "\n" +
-      "topics:\n" +
-      "    - name: topic_a\n" +
-      "      partitions: 1\n" +
-      "      replicationFactor: 1\n" +
-      "      config:\n" +
-      "          retention.ms: 604800000\n" +
-      "          compression.type: gzip\n" +
-      "    - name: topic_b\n" +
-      "      partitions: 1\n" +
-      "      replicationFactor: 1";
+  private String testConf =
+      "---\n"
+          + "kafka:\n"
+          + "    bootstrap.servers: localhost:9092\n"
+          + "\n"
+          + "topics:\n"
+          + "    - name: topic_a\n"
+          + "      partitions: 1\n"
+          + "      replicationFactor: 1\n"
+          + "      config:\n"
+          + "          retention.ms: 604800000\n"
+          + "          compression.type: gzip\n"
+          + "      tags:\n"
+          + "          owner: team@company.com\n"
+          + "          datasets:\n"
+          + "             - root.domain.product.data.type-one\n"
+          + "             - root.domain.product.data.type-two\n"
+          + "    - name: topic_b\n"
+          + "      partitions: 1\n"
+          + "      replicationFactor: 1";
 
   private CommandConfigConverter converter = new CommandConfigConverter();
 
@@ -55,18 +62,22 @@ public class CommandTest {
     Assert.assertEquals(1, configuredTopics.get(0).getPartitions());
     Assert.assertEquals(1, configuredTopics.get(0).getReplicationFactor());
     Assert.assertEquals("gzip", configuredTopics.get(0).getConfig().get("compression.type"));
+    Assert.assertEquals("team@company.com", configuredTopics.get(0).getTags().get("owner"));
+    Assert.assertEquals(
+        Arrays.asList("root.domain.product.data.type-one", "root.domain.product.data.type-two"),
+        configuredTopics.get(0).getTags().get("datasets"));
   }
 
   @Test(expected = IllegalArgumentException.class)
   public void testConfiguredTopicsBad() throws IOException {
-    String badConf = "---\n" +
-        "kafka:\n" +
-        "  bootstrap.servers: localhost:9092\n" +
-        "topics:\n" +
-        "  - name: topic_a    \n" +
-        "    replicationFactor: 1";
+    String badConf =
+        "---\n"
+            + "kafka:\n"
+            + "  bootstrap.servers: localhost:9092\n"
+            + "topics:\n"
+            + "  - name: topic_a    \n"
+            + "    replicationFactor: 1";
     Map<String, Object> config = converter.convert(confStream(badConf));
     new BaseCommand(config).configuredTopics();
   }
-
 }
