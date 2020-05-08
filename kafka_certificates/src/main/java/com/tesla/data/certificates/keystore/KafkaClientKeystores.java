@@ -3,6 +3,7 @@ package com.tesla.data.certificates.keystore;
 import com.beust.jcommander.JCommander;
 import org.bouncycastle.asn1.pkcs.PrivateKeyInfo;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
+import org.bouncycastle.openssl.PEMKeyPair;
 import org.bouncycastle.openssl.PEMParser;
 import org.bouncycastle.openssl.jcajce.JcaPEMKeyConverter;
 
@@ -75,7 +76,7 @@ public class KafkaClientKeystores {
    * @return a keystore for the private key + chain of certificates
    */
   public KeyStore createKeystore(InputStream privateKey, InputStream certificate,
-      InputStream caChain) throws KeyStoreException, CertificateException, NoSuchAlgorithmException, IOException {
+                                 InputStream caChain) throws KeyStoreException, CertificateException, NoSuchAlgorithmException, IOException {
     // initialize the keystore
     KeyStore ks = KeyStore.getInstance(JAVA_KEYSTORE);
     // need to load to initialize the keystore for use
@@ -83,9 +84,18 @@ public class KafkaClientKeystores {
 
     // read the private key
     PEMParser parser = new PEMParser(new InputStreamReader(privateKey));
-    PrivateKeyInfo o = (PrivateKeyInfo) parser.readObject();
+    Object key = parser.readObject();
+    if (key instanceof PEMKeyPair) {
+      key = ((PEMKeyPair) key).getPrivateKeyInfo();
+    }
+    // either it was a key pair, in which case we got the private key, or it already was an unencrypted PEM private
+    // key, so we can use it directly. We don't understand anything else.
+    if (!(key instanceof PrivateKeyInfo)) {
+      throw new IllegalArgumentException("Expected an RSA/DSA/ECDSA or an unencrypted PEM type key, but got a " + key);
+    }
+
     JcaPEMKeyConverter converter = new JcaPEMKeyConverter().setProvider(BOUNCY_CASTLE_TYPE);
-    PrivateKey pk = converter.getPrivateKey(o);
+    PrivateKey pk = converter.getPrivateKey((PrivateKeyInfo) key);
 
     // build the certificate chain for the key
     List<X509Certificate> chain = readCertificateChain(certFactory, certificate);
