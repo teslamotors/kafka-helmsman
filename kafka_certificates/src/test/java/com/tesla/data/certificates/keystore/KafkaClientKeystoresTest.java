@@ -32,6 +32,22 @@ public class KafkaClientKeystoresTest {
 
     KafkaClientKeystores keystores = new KafkaClientKeystores(PASSWORD);
     KeyStore store = keystores.createKeystore(key, cert, caChain);
+    verifyKeystore(store);
+  }
+
+
+  @Test
+  public void testKeystoreWithRSAKey() throws Exception {
+    InputStream key = stream("client-rsa.key");
+    InputStream cert = stream("client.crt");
+    InputStream caChain = stream("ca_chain");
+
+    KafkaClientKeystores keystores = new KafkaClientKeystores(PASSWORD);
+    KeyStore store = keystores.createKeystore(key, cert, caChain);
+    verifyKeystore(store);
+  }
+
+  private void verifyKeystore(KeyStore store) throws Exception{
     Key storedKey = store.getKey("client", PASSWORD.toCharArray());
     assertNotNull(storedKey);
     assertEquals("RSA", storedKey.getAlgorithm());
