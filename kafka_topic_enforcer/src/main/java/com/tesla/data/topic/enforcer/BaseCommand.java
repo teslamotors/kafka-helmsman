@@ -27,7 +27,7 @@ import java.util.Objects;
  * All topic enforcement related CLI tools are an extension of {@link BaseCommand}.
  */
 @Parameters(commandDescription = "Validate config")
-class BaseCommand {
+public class BaseCommand {
 
   static final ObjectMapper MAPPER = new ObjectMapper(new YAMLFactory());
   private static final TypeReference<Map<String, Object>> MAP_TYPE = new TypeReference<Map<String, Object>>() {
@@ -51,8 +51,8 @@ class BaseCommand {
     // DO NOT REMOVE, this is needed by jcommander
   }
 
-  // for testing
-  BaseCommand(Map<String, Object> cmdConfig) {
+
+  public BaseCommand(Map<String, Object> cmdConfig) {
     this.cmdConfig = cmdConfig;
   }
 
@@ -61,11 +61,11 @@ class BaseCommand {
     return cmdConfig;
   }
 
-  Map<String, Object> kafkaConfig() {
+  public Map<String, Object> kafkaConfig() {
     return MAPPER.convertValue(cmdConfig().get("kafka"), MAP_TYPE);
   }
 
-  List<ConfiguredTopic> configuredTopics() {
+  public List<ConfiguredTopic> configuredTopics() {
     return Arrays.asList(MAPPER.convertValue(cmdConfig().get("topics"), ConfiguredTopic[].class));
   }
 
@@ -79,7 +79,7 @@ class BaseCommand {
   /**
    * An converter that converts yaml config file to a config stored in a java map.
    */
-  static class CommandConfigConverter implements IStringConverter<Map<String, Object>> {
+  public static class CommandConfigConverter implements IStringConverter<Map<String, Object>> {
     @Override
     public Map<String, Object> convert(String file) {
       try {
@@ -89,7 +89,7 @@ class BaseCommand {
       }
     }
 
-    Map<String, Object> convert(InputStream is) throws IOException {
+    public Map<String, Object> convert(InputStream is) throws IOException {
       Map<String, Object> cmdConfig = MAPPER.readValue(is, MAP_TYPE);
       Objects.requireNonNull(cmdConfig.get("topics"), "Missing topics from config");
       Objects.requireNonNull(cmdConfig.get("kafka"), "Missing kafka connection settings from config");
