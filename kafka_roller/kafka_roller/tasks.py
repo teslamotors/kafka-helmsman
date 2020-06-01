@@ -8,6 +8,7 @@ import json
 import logging
 import os
 import sys
+from datetime import datetime
 
 from confluent_kafka.admin import AdminClient
 from fabric import SerialGroup as Group
@@ -49,9 +50,13 @@ def restart(
         logger.info("Restarting all %s", ", ".join([hostname(ip) for ip in hosts]))
         input("Press Enter to continue...")
     # connect_kwargs contains common SSH configs for the hosts in the group
-    for b in Group(*hosts, connect_kwargs=c.connect_kwargs):
-        logger.info("Restarting %s", hostname(b.host))
+    hosts = Group(*hosts, connect_kwargs=c.connect_kwargs)
+    for index, b in enumerate(hosts):
+        logger.info("(%s/%s) Restarting %s", index + 1, len(hosts), hostname(b.host))
+        start = datetime.now()
         _instance_restart(b, admin, zk, healthcheck_retries, healthcheck_wait, pre_stop)
+        end = datetime.now()
+        logger.info("Instance restart took: %s", end - start)
 
 
 def _instance_restart(c, admin, zk, retries, retry_wait, pre_stop):
