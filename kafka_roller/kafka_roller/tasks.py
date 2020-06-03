@@ -98,7 +98,7 @@ def _load_client_conf(conf):
 def stop(c, pre_stop=None):
     """Gracefully stop an instance."""
     if pre_stop is not None:
-        run(c, pre_stop)
+        _run_safe(c, "Pre-stop", pre_stop)
     service_stop(c, "kafka")
     # introduce & execute post stop here if needed..
 
@@ -106,13 +106,19 @@ def stop(c, pre_stop=None):
 def start(c, pre_start=None):
     """Gracefully start an instance."""
     if pre_start is not None:
-        result = run(c, pre_start)
-        if result.return_code != 0:
-            logger.error(
-                "Pre-start command {} failed with error: {}",
-                result.command,
-                result.return_code,
-            )
-            sys.exit(1)
+        _run_safe(c, "Pre-start", pre_start)
     service_start(c, "kafka")
     # introduce & execute post start here if needed..
+
+
+def _run_safe(c, description, command):
+    """Run a command and exit if the command fails"""
+    result = run(c, command)
+    if result.return_code != 0:
+        logger.error(
+            "{} command {} failed with error: {}",
+            description,
+            result.command,
+            result.return_code,
+        )
+        sys.exit(1)
