@@ -47,6 +47,7 @@ Options:
   -e INT, --healthcheck-wait=INT
   -h INT, --healthcheck-retries=INT
   -p STRING, --pre-stop=STRING
+  -r STRING, --pre-start=STRING
   -z STRING, --zk=STRING              zookeeper used by kafka
 ```
 

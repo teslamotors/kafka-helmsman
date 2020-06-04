@@ -41,6 +41,7 @@ def run(c, cmd):
         result.return_code,
     )
     logger.debug("cmd_result: %s", result)
+    return result
 
 
 def hostname(ip):

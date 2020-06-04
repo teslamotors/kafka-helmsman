@@ -29,6 +29,7 @@ logger = logging.getLogger(__name__)
         "healthcheck_wait": "seconds to wait between health checks",
         "conf": "kafka admin config overrides in a json file",
         "pre_stop": "command to run on each host before stopping the service",
+        "pre_start": "command to run on each host before starting the service",
     }
 )
 def restart(
@@ -39,6 +40,7 @@ def restart(
     healthcheck_wait=30,
     conf=None,
     pre_stop=None,
+    pre_start=None,
 ):
     """Gracefully restart an instance."""
     admin = _admin_client(bootstrap, conf)
@@ -54,19 +56,21 @@ def restart(
     for index, b in enumerate(hosts):
         logger.info("(%s/%s) Restarting %s", index + 1, len(hosts), hostname(b.host))
         start = datetime.now()
-        _instance_restart(b, admin, zk, healthcheck_retries, healthcheck_wait, pre_stop)
+        _instance_restart(
+            b, admin, zk, healthcheck_retries, healthcheck_wait, pre_stop, pre_start
+        )
         end = datetime.now()
         logger.info("Instance restart took: %s", end - start)
 
 
-def _instance_restart(c, admin, zk, retries, retry_wait, pre_stop):
+def _instance_restart(c, admin, zk, retries, retry_wait, pre_stop, pre_start):
     """Gracefully restart an instance."""
     with ZK(zk) as zk_conn:
         if not is_cluster_healthy(admin, zk_conn, retries, retry_wait):
             logger.critical("Cluster is not healthy, aborting!")
             sys.exit(1)
         stop(c, pre_stop)
-        start(c)
+        start(c, pre_start)
 
 
 def _admin_client(bootstrap, conf=None):
@@ -94,13 +98,27 @@ def _load_client_conf(conf):
 def stop(c, pre_stop=None):
     """Gracefully stop an instance."""
     if pre_stop is not None:
-        run(c, pre_stop)
+        _run_safe(c, "Pre-stop", pre_stop)
     service_stop(c, "kafka")
     # introduce & execute post stop here if needed..
 
 
-def start(c):
+def start(c, pre_start=None):
     """Gracefully start an instance."""
-    # introduce & execute pre start here if needed..
+    if pre_start is not None:
+        _run_safe(c, "Pre-start", pre_start)
     service_start(c, "kafka")
     # introduce & execute post start here if needed..
+
+
+def _run_safe(c, description, command):
+    """Run a command and exit if the command fails"""
+    result = run(c, command)
+    if result.return_code != 0:
+        logger.error(
+            "{} command {} failed with error: {}",
+            description,
+            result.command,
+            result.return_code,
+        )
+        sys.exit(1)
