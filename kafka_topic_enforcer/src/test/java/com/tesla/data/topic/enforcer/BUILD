@@ -55,3 +55,16 @@ java_test(
         "//kafka_topic_enforcer/src/main/java/com/tesla/data/topic/enforcer",
     ],
 )
+
+java_test(
+    name = "ClusterTopicsTest",
+    srcs = [
+        "ClusterTopicsTest.java",
+    ],
+    deps = [
+        "//3rdparty/jvm/com/fasterxml/jackson/core:jackson_core",
+        "//3rdparty/jvm/com/fasterxml/jackson/core:jackson_databind",
+        "//3rdparty/jvm/com/fasterxml/jackson/dataformat:jackson_dataformat_yaml",
+        "//kafka_topic_enforcer/src/main/java/com/tesla/data/topic/enforcer",
+    ],
+)
