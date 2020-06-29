@@ -7,17 +7,25 @@ package com.tesla.data.topic.enforcer;
 import com.tesla.data.topic.enforcer.BaseCommand.CommandConfigConverter;
 
 import org.junit.Assert;
+import org.junit.ClassRule;
 import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 
 import java.io.ByteArrayInputStream;
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.Charset;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
 public class CommandTest {
+
+  @ClassRule
+  public static final TemporaryFolder TEMP_FOLDER = new TemporaryFolder();
 
   private String testConf =
       "---\n"
@@ -79,5 +87,55 @@ public class CommandTest {
             + "    replicationFactor: 1";
     Map<String, Object> config = converter.convert(confStream(badConf));
     new BaseCommand(config).configuredTopics();
+  }
+
+  private Map<String, Object> configWithTopicsFile(String topics) throws IOException {
+    File tempFile = TEMP_FOLDER.newFile();
+    Files.write(Paths.get(tempFile.getPath()), topics.getBytes());
+
+    String testConf =
+        String.join(
+            "\n",
+            new String[]{
+                "---",
+                "kafka:",
+                "  bootstrap.servers: localhost:9092",
+                "topicsFile: " + tempFile.getPath()
+            });
+
+    return converter.convert(confStream(testConf));
+  }
+
+  @Test
+  public void testTopicsFromFile() throws IOException {
+    String topics =
+        String.join(
+            "\n",
+            new String[]{
+                "---",
+                "- name: topic_a",
+                "  partitions: 1",
+                "  replicationFactor: 1",
+            });
+    Assert.assertEquals(1, new BaseCommand(configWithTopicsFile(topics)).configuredTopics().size());
+  }
+
+  @Test
+  public void testClusterTopicsFromFile() throws IOException {
+    String topics =
+        String.join(
+            "\n",
+            new String[]{
+                "---",
+                "- name: topic_a",
+                "  partitions: 1",
+                "  replicationFactor: 1",
+                "  clusters:",
+                "    cluster_a: {}",
+            });
+    Assert.assertEquals(
+        1, new BaseCommand(configWithTopicsFile(topics), "cluster_a").configuredTopics().size());
+    Assert.assertEquals(
+        0, new BaseCommand(configWithTopicsFile(topics), "cluster_b").configuredTopics().size());
   }
 }

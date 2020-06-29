@@ -4,6 +4,8 @@
 
 package com.tesla.data.topic.enforcer;
 
+import static com.tesla.data.topic.enforcer.ClusterTopics.topicConfigsForCluster;
+
 import com.beust.jcommander.IStringConverter;
 import com.beust.jcommander.Parameter;
 import com.beust.jcommander.ParameterException;
@@ -18,10 +20,10 @@ import org.slf4j.LoggerFactory;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 /**
  * All topic enforcement related CLI tools are an extension of {@link BaseCommand}.
@@ -45,15 +47,25 @@ public class BaseCommand {
       converter = CommandConfigConverter.class)
   private Map<String, Object> cmdConfig = null;
 
+  @Parameter(
+      names = {"--cluster"},
+      description = "a cluster name, if specified, " +
+          "consolidated (multi-cluster) topic configuration file is expected")
+  private String cluster = null;
+
   final Logger LOG = LoggerFactory.getLogger(getClass());
 
   BaseCommand() {
     // DO NOT REMOVE, this is needed by jcommander
   }
 
-
   public BaseCommand(Map<String, Object> cmdConfig) {
+    this(cmdConfig, null);
+  }
+
+  public BaseCommand(Map<String, Object> cmdConfig, String cluster) {
     this.cmdConfig = cmdConfig;
+    this.cluster = cluster;
   }
 
   Map<String, Object> cmdConfig() {
@@ -66,7 +78,30 @@ public class BaseCommand {
   }
 
   public List<ConfiguredTopic> configuredTopics() {
-    return Arrays.asList(MAPPER.convertValue(cmdConfig().get("topics"), ConfiguredTopic[].class));
+    List<Map<String, Object>> unParsed = configuredTopics(cmdConfig());
+    List<Map<String, Object>> forCluster =
+        cluster == null ? unParsed : topicConfigsForCluster(unParsed, cluster);
+    return forCluster.stream()
+        .map(t -> MAPPER.convertValue(t, ConfiguredTopic.class))
+        .collect(Collectors.toList());
+  }
+
+  // un-parsed list of configured topics
+  private List<Map<String, Object>> configuredTopics(Map<String, Object> cmdConfig) {
+    // both 'topicsFile' & 'topics' YAMLs are a list of maps
+    TypeReference<List<Map<String, Object>>> listOfMaps =
+        new TypeReference<List<Map<String, Object>>>() {};
+    if (cmdConfig.containsKey("topics")) {
+      return MAPPER.convertValue(cmdConfig.get("topics"), listOfMaps);
+    } else {
+      try {
+        return MAPPER.readValue(
+            new FileInputStream((String) cmdConfig.get("topicsFile")), listOfMaps);
+      } catch (IOException e) {
+        throw new ParameterException(
+            "Could not load topics from file " + cmdConfig.get("topicsFile"), e);
+      }
+    }
   }
 
   public int run() {
@@ -91,7 +126,8 @@ public class BaseCommand {
 
     public Map<String, Object> convert(InputStream is) throws IOException {
       Map<String, Object> cmdConfig = MAPPER.readValue(is, MAP_TYPE);
-      Objects.requireNonNull(cmdConfig.get("topics"), "Missing topics from config");
+      Object topics = cmdConfig.containsKey("topics") ? cmdConfig.get("topics") : cmdConfig.get("topicsFile");
+      Objects.requireNonNull(topics, "Missing topics from config");
       Objects.requireNonNull(cmdConfig.get("kafka"), "Missing kafka connection settings from config");
       return cmdConfig;
     }

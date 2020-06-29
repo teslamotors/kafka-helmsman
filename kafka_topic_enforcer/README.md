@@ -84,3 +84,62 @@ Sample configuration
           cleanup.policy: "delete"
           retention.ms: "12000000"
 ```
+
+OR,
+
+```yaml
+    kafka:
+      bootstrap.servers: "broker1:9092,broker2:9092,broker3:9092"
+    topicsFile: /topics.yaml
+```
+
+where `/topics.yaml` has
+
+```yaml
+  - name: "topic_A"
+    partitions: 30
+    replicationFactor: 3
+
+  - name: "topic_B"
+    partitions: 32
+    replicationFactor: 2
+    config:
+       cleanup.policy: "delete"
+       retention.ms: "12000000"
+```
+
+## Multi cluster configuration
+To avoid repetition across clusters, the topic enforcer supports multi cluster configuration as well. A sample is shown below,
+
+```yaml
+kafka:
+    bootstrap.servers: 'foo_1:9092,foo_2:9092,foo_3:9092'
+topics:
+  - name: topic_A
+    partitions: 30
+    replicationFactor: 3
+    clusters:
+      foo: {}
+      bar:
+        replicationFactor: 2
+  - name: topic_B
+    partitions: 10
+    replicationFactor: 3
+    config:
+       retention.ms: "12000000"
+    clusters:
+      foo: {}
+      baz:
+        config:
+          retention.ms: "6000000"
+```
+
+To use this feature, use `cluster` flag in the enforcer. Only topics relevant to the given cluster would be enforced by the enforcer. Other rules are,
+
+* A topic applies to a cluster if that cluster is present under topic's `clusters`
+attribute. If no changes to base config are desired, specify empty dict `{}`
+* All topic properties can be overridden, except the name
+* Map (dictionary) properties are merged in a way that preserves base settings
+ 
+
+Note: `topicsFile` is supported for multi-cluster configuration too.
