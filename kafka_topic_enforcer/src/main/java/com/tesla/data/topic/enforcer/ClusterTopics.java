@@ -58,14 +58,14 @@ public class ClusterTopics {
   public static final String CLUSTERS = "clusters";
 
   /**
-   * Get topics configured for a given cluster.
+   * Get topics configurations for a given cluster.
    *
    * @param allTopics a list containing all consolidated (all clusters) topic configurations
    * @param cluster   the name of the cluster to filter topics on
    * @return a list of topics configurations for the given cluster
    * @throws IllegalArgumentException if invalid config structure is passed
    */
-  public static List<Map<String, Object>> topicsForCluster(
+  public static List<Map<String, Object>> topicConfigsForCluster(
       List<Map<String, Object>> allTopics, String cluster) {
     Map<String, List<Map<String, Object>>> map = new HashMap<>();
     allTopics.forEach(
@@ -99,6 +99,7 @@ public class ClusterTopics {
     return map.getOrDefault(cluster, Collections.emptyList());
   }
 
+  // override all properties
   private static Map<String, Object> applyOverrides(
       Map<String, Object> base, Map<String, Object> overrides) {
     Map<String, Object> result = new HashMap<>(base);
@@ -106,12 +107,13 @@ public class ClusterTopics {
     properties.forEach(
         p -> {
           Object newValue = overrides.containsKey(p) ? overrides.get(p) : base.get(p);
-          result.merge(p, newValue, ClusterTopics::applyOverride);
+          result.merge(p, newValue, ClusterTopics::remap);
         });
     return result;
   }
 
-  private static Object applyOverride(Object originalValue, Object overrideValue) {
+  // override a single property
+  private static Object remap(Object originalValue, Object overrideValue) {
     if (originalValue instanceof Map) {
       checkArgument(overrideValue instanceof Map);
       ((Map) originalValue).putAll((Map) overrideValue);
