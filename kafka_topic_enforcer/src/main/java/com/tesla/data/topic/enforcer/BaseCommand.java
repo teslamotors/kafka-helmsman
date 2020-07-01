@@ -14,16 +14,18 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.module.paramnames.ParameterNamesModule;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import tesla.shade.com.google.common.io.Resources;
 
 /**
  * All topic enforcement related CLI tools are an extension of {@link BaseCommand}.
@@ -95,8 +97,14 @@ public class BaseCommand {
       return MAPPER.convertValue(cmdConfig.get("topics"), listOfMaps);
     } else {
       try {
-        return MAPPER.readValue(
-            new FileInputStream((String) cmdConfig.get("topicsFile")), listOfMaps);
+        String topicsFile = (String) cmdConfig.get("topicsFile");
+        final InputStream is;
+        if (Files.exists(Paths.get(topicsFile))) {
+          is = new FileInputStream(topicsFile);
+        } else {
+          is = Resources.getResource(topicsFile).openStream();
+        }
+        return MAPPER.readValue(is, listOfMaps);
       } catch (IOException e) {
         throw new ParameterException(
             "Could not load topics from file " + cmdConfig.get("topicsFile"), e);
