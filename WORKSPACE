@@ -1,16 +1,15 @@
 # Maven
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive", "http_file")
+load("@bazel_tools//tools/build_defs/repo:git.bzl", "git_repository")
 load("//3rdparty:workspace.bzl", "maven_dependencies")
 
 maven_dependencies()
 
-bazel_jar_jar_version = "16e48f319048e090a2fe7fd39a794312d191fc6f"
-
-http_archive(
+git_repository(
     name = "com_github_johnynek_bazel_jar_jar",
-    sha256 = "ee227e7f304e9b7f26d033af677f31066f68b1c94ee8f8d04fbecfb371c3caef",
-    strip_prefix = "bazel_jar_jar-%s" % bazel_jar_jar_version,
-    url = "https://github.com/johnynek/bazel_jar_jar/archive/%s.zip" % bazel_jar_jar_version,
+    commit = "171f268569384c57c19474b04aebe574d85fde0d",
+    remote = "git://github.com/johnynek/bazel_jar_jar.git",
+    shallow_since = "1594234634 -1000",
 )
 
 load("@com_github_johnynek_bazel_jar_jar//:jar_jar.bzl", "jar_jar_repositories")
