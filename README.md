@@ -22,9 +22,9 @@ The tools are written in Java & Python. Refer to language specific section for d
 
 ### Dependencies
 
-Java code uses [bazel](https://www.bazel.build) as the build tool. If you don't have `bazel` installed, follow the instructions [here](https://docs.bazel.build/versions/master/install.html). 
+Java code uses [bazel](https://www.bazel.build) as the build tool, installation of which is managed via bazelisk. Bazelisk is a version manager for Bazel. It takes care of downloading and installing Bazel itself, so you don’t have to worry about using the correct version of Bazel.
 
-At the time of writing the Bazel version used is `0.24.1`.
+Bazelisk can be installed in different ways, see [here](https://docs.bazel.build/versions/master/install-bazelisk.html) for details.
 
 ### Test
 
