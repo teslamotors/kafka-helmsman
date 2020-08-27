@@ -1,4 +1,5 @@
 # kafka-helmsman
+![Build status](https://github.com/teslamotors/kafka-helmsman/workflows/CI/badge.svg)
 
 kafka-helmsman is a repository of tools that focus on automating a Kafka deployment.
 These tools were developed by data platform engineers at Tesla, they add value to the open-source Kafka ecosystem in a couple of ways:
