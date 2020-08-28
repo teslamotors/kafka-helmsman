@@ -35,8 +35,8 @@ public class BaseCommand<T> {
   protected static final ObjectMapper MAPPER = new ObjectMapper(new YAMLFactory());
   private static final TypeReference<Map<String, Object>> MAP_TYPE = new TypeReference<Map<String, Object>>() {
   };
-  protected static int SUCCESS = 0;
-  protected static int FAILURE = 1;
+  public static int SUCCESS = 0;
+  public static int FAILURE = 1;
 
   static {
     MAPPER.registerModule(new ParameterNamesModule());
@@ -78,11 +78,18 @@ public class BaseCommand<T> {
   }
 
   public List<T> configuredEntities(Class<T> toValueType, String entitiesKey, String entitiesFileKey) {
+    LOG.info("Config contains, {}: {}, {}: {}",
+        entitiesKey, cmdConfig.containsKey(entitiesKey), entitiesFileKey, cmdConfig.containsKey(entitiesFileKey));
     Object entities = cmdConfig.containsKey(entitiesKey) ? cmdConfig.get(entitiesKey) : cmdConfig.get(entitiesFileKey);
     Objects.requireNonNull(entities, "Missing entities in config");
     List<Map<String, Object>> unParsed = configuredEntities(cmdConfig, entitiesKey, entitiesFileKey);
     List<Map<String, Object>> forCluster =
         cluster == null ? unParsed : ClusterEntities.forCluster(unParsed, cluster);
+    if (cluster == null) {
+      LOG.info("Cluster is not set");
+    } else {
+      LOG.info("Out of total {}, found {} matching entities for cluster {}", unParsed.size(), forCluster.size(), cluster);
+    }
     return forCluster.stream()
         .map(t -> MAPPER.convertValue(t, toValueType))
         .collect(Collectors.toList());

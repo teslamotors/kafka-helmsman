@@ -25,7 +25,7 @@ import java.util.stream.Collectors;
  */
 public abstract class Enforcer<T> {
 
-  protected static final Logger LOG = LoggerFactory.getLogger(Enforcer.class);
+  protected final Logger LOG = LoggerFactory.getLogger(getClass());
   // we do not allow more than this % of entities to be deleted in a single run
   protected static final float PERMISSIBLE_DELETION_THRESHOLD = 0.50f;
   protected static final Gauge absentEntities = Gauge.build()
@@ -58,6 +58,7 @@ public abstract class Enforcer<T> {
     long distinct = configured.stream().distinct().count();
     checkArgument(configured.size() == distinct, "Found duplicate entities in config");
     checkArgument(safemode || configured.size() != 0, "Configured entities should not be empty if safemode is off");
+    LOG.info("Configured {} entities", configured.size());
     this.isEqual = isEqual;
     this.configured = configured;
     this.existing = existing;
