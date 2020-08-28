@@ -55,7 +55,7 @@ public class EnforceCommand<T> extends BaseCommand<T> {
 
   private Enforcer<T> enforcer;
 
-  EnforceCommand() {
+  protected EnforceCommand() {
     // DO NOT REMOVE, this is needed by jcommander
   }
 

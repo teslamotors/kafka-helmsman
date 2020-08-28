@@ -15,6 +15,7 @@ java_library(
         "//3rdparty/jvm/org/apache/kafka:kafka_clients",
         "//3rdparty/jvm/org/slf4j:slf4j_api",
         "//3rdparty/jvm_shaded/com/google/guava_shaded",
+        "//kafka_enforcer_common/src/main/java/com/tesla/data/enforcer",
     ],
 )
 

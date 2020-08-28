@@ -4,13 +4,9 @@
 
 package com.tesla.data.topic.enforcer;
 
-
-import static org.mockito.Matchers.anyList;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
-import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
 import org.junit.Assert;
@@ -22,63 +18,28 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 
-
-public class EnforcerTest {
+public class TopicEnforcerTest {
 
   private final List<ConfiguredTopic> configured = Arrays.asList(
       new ConfiguredTopic("topic_a", 1, (short) 1, Collections.emptyMap()),
       new ConfiguredTopic("topic_b", 1, (short) 2, Collections.emptyMap()));
   private TopicService service;
-  private Enforcer enforcer;
+  private TopicEnforcer enforcer;
 
   @Before
   public void setup() {
     service = mock(TopicService.class);
-    enforcer = new Enforcer(service, configured, true);
+    enforcer = new TopicEnforcer(service, configured, true);
   }
 
-  @Test
-  public void testPassesSanityCheckGood() {
-    Assert.assertTrue(Enforcer.passesSanityCheck(configured));
-  }
-
-  @Test
-  public void testPassesSanityCheckBad() {
-    Assert.assertFalse(Enforcer.passesSanityCheck(Collections.nCopies(2, configured.get(0))));
-  }
-
-  @Test
+  @Test(expected = IllegalArgumentException.class)
   public void testPassesSanityCheckBadWithInternalTopic() {
     List<ConfiguredTopic> configured = Arrays.asList(
         new ConfiguredTopic("_internal_topic", 1, (short) 1, Collections.emptyMap()),
         new ConfiguredTopic("topic_a", 1, (short) 1, Collections.emptyMap()),
         new ConfiguredTopic("topic_b", 1, (short) 2, Collections.emptyMap()));
-    Assert.assertFalse(Enforcer.passesSanityCheck(configured));
-  }
-
-  @Test
-  public void testAbsentTopics() {
-    when(service.listExisting(true)).thenReturn(Collections.singletonMap("topic_a",
-        new ConfiguredTopic("topic_a", 1, (short) 1, Collections.emptyMap())));
-    Assert.assertEquals(Collections.singletonList(configured.get(1)), enforcer.absentTopics());
-  }
-
-
-  @Test
-  public void testAbsentTopicsNoneCreated() {
-    when(service.listExisting(true)).thenReturn(Collections.emptyMap());
-    Assert.assertEquals(configured, enforcer.absentTopics());
-  }
-
-  @Test
-  public void testAbsentTopicsNoneConfigured() {
-    TopicService service = mock(TopicService.class);
-    Enforcer enforcer = new Enforcer(service, Collections.emptyList(), true);
-    Assert.assertTrue(enforcer.absentTopics().isEmpty());
-    verifyZeroInteractions(service);
+    enforcer = new TopicEnforcer(service, configured, true);
   }
 
   @Test
@@ -101,7 +62,7 @@ public class EnforcerTest {
     };
 
     when(service.listExisting(true)).thenReturn(existing);
-    Enforcer enforcer = new Enforcer(service, configured, true);
+    TopicEnforcer enforcer = new TopicEnforcer(service, configured, true);
     enforcer.increasePartitions();
 
     // topic 'b'
@@ -130,7 +91,7 @@ public class EnforcerTest {
     };
 
     when(service.listExisting(true)).thenReturn(existing);
-    Enforcer enforcer = new Enforcer(service, configured, true);
+    TopicEnforcer enforcer = new TopicEnforcer(service, configured, true);
     enforcer.alterConfiguration();
 
     // topic 'a'
@@ -141,71 +102,13 @@ public class EnforcerTest {
   }
 
   @Test
-  public void testNoUnexpectedTopics() {
-    Map<String, ConfiguredTopic> existing =
-        configured.stream().collect(Collectors.toMap(ConfiguredTopic::getName, Function.identity()));
-    when(service.listExisting(true)).thenReturn(existing);
-    Assert.assertTrue(enforcer.unexpectedTopics().isEmpty());
-  }
-
-  @Test
-  public void testUnexpectedTopics() {
-    Map<String, ConfiguredTopic> existing = Collections.singletonMap("x",
-        new ConfiguredTopic("x", 1, (short) 1, Collections.emptyMap()));
-    when(service.listExisting(true)).thenReturn(existing);
-    Assert.assertEquals(1, enforcer.unexpectedTopics().size());
-    Assert.assertEquals(existing.get("x"), enforcer.unexpectedTopics().get(0));
-  }
-
-  @Test(expected = IllegalStateException.class)
-  public void testSafeMode() {
-    enforcer = new Enforcer(service, configured, true);
-    enforcer.deleteUnexpectedTopics();
-  }
-
-  @Test
-  public void testSafeModeEnforceAll() {
-    Map<String, ConfiguredTopic> existing = Collections.singletonMap("x",
-        new ConfiguredTopic("x", 1, (short) 1, Collections.emptyMap()));
-    when(service.listExisting(true)).thenReturn(existing);
-
-    // safemode on
-    new Enforcer(service, configured, true).enforceAll();
-    verify(service, times(0)).delete(anyList());
-
-    // safemode off
-    new Enforcer(service, configured, false).enforceAll();
-    verify(service, times(1)).delete(Collections.singletonList(existing.get("x")));
-  }
-
-  @Test(expected = IllegalArgumentException.class)
-  public void testEmptyConfigSafeModeOff() {
-    enforcer = new Enforcer(service, Collections.emptyList(), false);
-  }
-
-  @Test(expected = IllegalStateException.class)
-  public void testTooManyTopicsBeingDeleted() {
-    enforcer = new Enforcer(service, configured, false);
-    Map<String, ConfiguredTopic> existing = new HashMap<String, ConfiguredTopic>() {
-      {
-        put("x", new ConfiguredTopic("x", 1, (short) 1, Collections.emptyMap()));
-        put("y", new ConfiguredTopic("y", 1, (short) 1, Collections.emptyMap()));
-      }
-    };
-    when(service.listExisting(true)).thenReturn(existing);
-
-    // should not be allowed as we are deleting lot of topics!
-    enforcer.deleteUnexpectedTopics();
-  }
-
-  @Test
   public void testPartitionIncreaseUnSafeMode() {
     List<ConfiguredTopic> configured = Collections.singletonList(
         new ConfiguredTopic("a", 1000, (short) 3, Collections.emptyMap()));
     Map<String, ConfiguredTopic> existing = Collections.singletonMap("a",
         new ConfiguredTopic("a", 100, (short) 3, Collections.emptyMap()));
     when(service.listExisting(true)).thenReturn(existing);
-    enforcer = new Enforcer(service, configured, false);
+    enforcer = new TopicEnforcer(service, configured, false);
     Assert.assertEquals("aggressive partition count increase must be allowed in unsafe mode", configured,
         enforcer.increasePartitions());
   }
@@ -220,7 +123,7 @@ public class EnforcerTest {
     when(service.listExisting(true)).thenReturn(existing);
 
     // attempt a risk config change, it should go through
-    enforcer = new Enforcer(service, configured,
+    enforcer = new TopicEnforcer(service, configured,
         new ConfigDrift(10, 100, 0.25f, risky.keySet()), false);
     Assert.assertEquals("risky config must be allowed in unsafe mode", configured, enforcer.alterConfiguration());
   }
