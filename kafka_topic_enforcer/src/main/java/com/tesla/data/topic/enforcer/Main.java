@@ -4,8 +4,13 @@
 
 package com.tesla.data.topic.enforcer;
 
+import com.tesla.data.enforcer.BaseCommand;
+import com.tesla.data.enforcer.EnforceCommand;
+import com.tesla.data.enforcer.Enforcer;
+
 import com.beust.jcommander.JCommander;
 import com.beust.jcommander.Parameter;
+import org.apache.kafka.clients.admin.AdminClient;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -13,7 +18,7 @@ import java.util.Map;
 /**
  * The app.
  */
-public class Main {
+public class Main extends EnforceCommand<ConfiguredTopic> {
 
   @Parameter(
       names = {"--help", "-h"},
@@ -21,16 +26,14 @@ public class Main {
   private boolean help = false;
 
   public static void main(String[] args) {
-    final Map<String, BaseCommand> commands = new HashMap<>();
-    commands.put("validate", new BaseCommand());
-    commands.put("dump", new DumpCommand());
-    commands.put("enforce", new EnforceCommand());
-
     final Main main = new Main();
+    final Map<String, BaseCommand<ConfiguredTopic>> commands = new HashMap<>();
+    commands.put("validate", new BaseCommand<>());
+    commands.put("dump", new DumpCommand());
+    commands.put("enforce", main);
+
     final JCommander commander = new JCommander(main);
-    for (Map.Entry<String, BaseCommand> entry : commands.entrySet()) {
-      commander.addCommand(entry.getKey(), entry.getValue());
-    }
+    commands.forEach(commander::addCommand);
     commander.parse(args);
 
     if (main.help || args.length == 0) {
@@ -40,6 +43,12 @@ public class Main {
 
     final String cmd = commander.getParsedCommand();
     System.exit(commands.get(cmd).run());
+  }
+
+  @Override
+  protected Enforcer<ConfiguredTopic> initEnforcer(AdminClient adminClient) {
+    return new TopicEnforcer(new TopicServiceImpl(adminClient, dryrun),
+        configuredEntities(ConfiguredTopic.class, "topics", "topicsFile"), !unsafemode);
   }
 
 }

@@ -4,6 +4,8 @@
 
 package com.tesla.data.topic.enforcer;
 
+import com.tesla.data.enforcer.BaseCommand;
+
 import com.beust.jcommander.Parameters;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import org.apache.kafka.clients.admin.AdminClient;
@@ -16,7 +18,7 @@ import java.util.stream.Collectors;
 @Parameters(commandDescription = "Dump existing cluster config on stdout. " +
     "A subset of topic config is not serialized on the server side and that would be missing in " +
     "the dump output, example: topic tags.")
-public class DumpCommand extends BaseCommand {
+public class DumpCommand extends BaseCommand<ConfiguredTopic> {
 
   @Override
   public int run() {
