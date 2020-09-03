@@ -1,8 +1,7 @@
-package(default_visibility = ["//:__subpackages__"])
-
 java_library(
     name = "enforcer",
     srcs = glob(["*.java"]),
+    visibility = ["//visibility:public"],
     deps = [
         "//3rdparty/jvm/com/beust:jcommander",
         "//3rdparty/jvm/com/fasterxml/jackson/core:jackson_annotations",
