@@ -13,8 +13,8 @@ java_library(
 )
 
 java_test(
-    name = "AclServiceImplTest",
-    srcs = ["AclServiceImplTest.java"],
+    name = "AclEnforcerTest",
+    srcs = ["AclEnforcerTest.java"],
     deps = [
         ":acl_config",
         "//3rdparty/jvm/org/apache/kafka:kafka_clients",

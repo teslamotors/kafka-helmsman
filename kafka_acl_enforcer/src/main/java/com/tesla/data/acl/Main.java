@@ -24,7 +24,7 @@ public class Main {
     protected Enforcer<AclBinding> initEnforcer(AdminClient client) {
       Json.addMixIns(MAPPER);
       return new AclEnforcer(configuredEntities(AclBinding.class, "acls", "aclsFile"),
-          new AclServiceImpl(client, dryrun), !unsafemode);
+          new AclService(client), !unsafemode, dryrun);
     }
   }
 

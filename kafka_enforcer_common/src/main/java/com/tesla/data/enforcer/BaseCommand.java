@@ -83,11 +83,12 @@ public class BaseCommand<T> {
     Object entities = cmdConfig.containsKey(entitiesKey) ? cmdConfig.get(entitiesKey) : cmdConfig.get(entitiesFileKey);
     Objects.requireNonNull(entities, "Missing entities in config");
     List<Map<String, Object>> unParsed = configuredEntities(cmdConfig, entitiesKey, entitiesFileKey);
-    List<Map<String, Object>> forCluster =
-        cluster == null ? unParsed : ClusterEntities.forCluster(unParsed, cluster);
+    final List<Map<String, Object>> forCluster;
     if (cluster == null) {
+      forCluster = unParsed;
       LOG.info("Cluster is not set");
     } else {
+      forCluster = ClusterEntities.forCluster(unParsed, cluster);
       LOG.info("Out of total {}, found {} matching entities for cluster {}", unParsed.size(), forCluster.size(), cluster);
     }
     return forCluster.stream()

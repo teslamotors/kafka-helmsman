@@ -12,15 +12,10 @@ import org.apache.kafka.common.resource.ResourcePattern;
 /** JSON utilities for ACL structures */
 public class Json {
 
-  /**
-   * Add mixins for {@link org.apache.kafka.common.acl.AclBinding} json sede.
-   *
-   * @param mapper an object mapper
-   */
+  /** Add mixins for {@link org.apache.kafka.common.acl.AclBinding} json sede. */
   public static void addMixIns(ObjectMapper mapper) {
     mapper.addMixIn(AclBinding.class, AclBindingMixin.class);
     mapper.addMixIn(AccessControlEntry.class, AccessControlEntryMixin.class);
     mapper.addMixIn(ResourcePattern.class, ResourcePatternMixin.class);
   }
-
 }
