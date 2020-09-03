@@ -1,9 +1,10 @@
 /*
- * Copyright (c) 2019. Tesla Motors, Inc. All rights reserved.
+ * Copyright (c) 2020. Tesla Motors, Inc. All rights reserved.
  */
 
-package com.tesla.data.topic.enforcer;
+package com.tesla.data.acl;
 
+import com.tesla.data.acl.mixin.Json;
 import com.tesla.data.enforcer.BaseCommand;
 import com.tesla.data.enforcer.EnforceCommand;
 import com.tesla.data.enforcer.Enforcer;
@@ -11,20 +12,19 @@ import com.tesla.data.enforcer.Enforcer;
 import com.beust.jcommander.JCommander;
 import com.beust.jcommander.Parameter;
 import org.apache.kafka.clients.admin.AdminClient;
+import org.apache.kafka.common.acl.AclBinding;
 
 import java.util.HashMap;
 import java.util.Map;
 
-/** The app. */
 public class Main {
 
-  private static class TopicEnforceCommand extends EnforceCommand<ConfiguredTopic> {
+  private static class AclEnforceCommand extends EnforceCommand<AclBinding> {
     @Override
-    protected Enforcer<ConfiguredTopic> initEnforcer(AdminClient adminClient) {
-      return new TopicEnforcer(
-          new TopicServiceImpl(adminClient, dryrun),
-          configuredEntities(ConfiguredTopic.class, "topics", "topicsFile"),
-          !unsafemode);
+    protected Enforcer<AclBinding> initEnforcer(AdminClient client) {
+      Json.addMixIns(MAPPER);
+      return new AclEnforcer(configuredEntities(AclBinding.class, "acls", "aclsFile"),
+          new AclService(client), !unsafemode, dryrun);
     }
   }
 
@@ -35,13 +35,15 @@ public class Main {
 
   public static void main(String[] args) {
     final Main main = new Main();
-    final Map<String, BaseCommand<ConfiguredTopic>> commands = new HashMap<>();
+
+    final Map<String, BaseCommand<AclBinding>> commands = new HashMap<>();
     commands.put("validate", new BaseCommand<>());
-    commands.put("dump", new DumpCommand());
-    commands.put("enforce", new TopicEnforceCommand());
+    commands.put("enforce", new AclEnforceCommand());
 
     final JCommander commander = new JCommander(main);
-    commands.forEach(commander::addCommand);
+    for (Map.Entry<String, BaseCommand<AclBinding>> entry : commands.entrySet()) {
+      commander.addCommand(entry.getKey(), entry.getValue());
+    }
     commander.parse(args);
 
     if (main.help || args.length == 0) {
