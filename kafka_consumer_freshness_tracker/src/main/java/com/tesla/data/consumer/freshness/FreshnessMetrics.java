@@ -67,4 +67,14 @@ public class FreshnessMetrics {
       .help("Time spent making the actual queries for kafka time")
       .labelNames("type")
       .register();
+  Gauge lastClusterRunAttempt = Gauge.build()
+      .name("kafka_consumer_freshness_last_run_timestamp")
+      .help("Timestamp of last run as epoch seconds.")
+      .labelNames("cluster")
+      .register();
+  Gauge lastClusterRunSuccessfulAttempt = Gauge.build()
+      .name("kafka_consumer_freshness_last_success_run_timestamp")
+      .help("Timestamp of last successful run as epoch seconds.")
+      .labelNames("cluster")
+      .register();
 }
