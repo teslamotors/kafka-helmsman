@@ -186,6 +186,7 @@ public class ConsumerFreshness {
   private List<ListenableFuture> measureCluster(Burrow.ClusterClient client) {
     List<ListenableFuture> completed = new ArrayList<>();
     try {
+      metrics.lastClusterRunAttempt.labels(client.getCluster()).setToCurrentTime();
       ArrayBlockingQueue<KafkaConsumer> workers = this.availableWorkers.get(client.getCluster());
       List<String> consumerGroups = client.consumerGroups();
       Collections.sort(consumerGroups); // add some sanity to the logs
@@ -233,6 +234,7 @@ public class ConsumerFreshness {
           completed.add(result);
         }
       }
+      metrics.lastClusterRunSuccessfulAttempt.labels(client.getCluster()).setToCurrentTime();
     } catch (IOException | InterruptedException e) {
       LOG.error("Failed to handle cluster {}", client.getCluster(), e);
     }
