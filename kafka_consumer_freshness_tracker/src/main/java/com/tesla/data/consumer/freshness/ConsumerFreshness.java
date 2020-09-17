@@ -121,7 +121,6 @@ public class ConsumerFreshness {
         }).collect(Collectors.toMap(AbstractMap.SimpleEntry::getKey, AbstractMap.SimpleEntry::getValue));
 
     this.executor = MoreExecutors.listeningDecorator(Executors.newFixedThreadPool(workerThreadCount));
-    this.metrics.register();
   }
 
   private KafkaConsumer createConsumer(Map<String, Object> conf) {
@@ -155,6 +154,7 @@ public class ConsumerFreshness {
       try {
         clusters = burrow.getClusters();
       } catch (IOException e) {
+        LOG.error("Failed to read from burrow", e);
         this.metrics.burrowClustersReadFailed.inc();
         return null;
       }
