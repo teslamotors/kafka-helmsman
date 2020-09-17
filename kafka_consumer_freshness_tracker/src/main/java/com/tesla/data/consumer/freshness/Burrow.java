@@ -18,6 +18,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 /**
@@ -27,19 +28,49 @@ class Burrow {
   private static final Logger LOG = LoggerFactory.getLogger(Burrow.class);
   private static final ObjectMapper MAPPER = new ObjectMapper();
   private static final Joiner PATHS = Joiner.on('/');
+  private static final String HEALTH_CHECK = "burrow/admin";
 
   private final OkHttpClient client;
   private final String url;
   private final String api;
 
   public Burrow(Map<String, Object> conf) {
-    this(conf, new OkHttpClient());
+    this(conf, new OkHttpClient(), true);
   }
 
-  Burrow(Map<String, Object> conf, OkHttpClient client) {
+  public Burrow(Map<String, Object> conf, OkHttpClient client) {
+    this(conf, client, false);
+  }
+
+  /**
+   * Creates a burrow instance.
+   *
+   * @param conf          app configuration
+   * @param client        an http client
+   * @param doHealthCheck if true, performs a health check and throws an exception if the check fails
+   */
+  Burrow(Map<String, Object> conf, OkHttpClient client, boolean doHealthCheck) {
     this.client = client;
     this.url = (String) conf.getOrDefault("url", "http://127.0.0.1:8000");
     this.api = (String) conf.getOrDefault("api", "v3/kafka");
+    // sanity check
+    if (doHealthCheck && !isHealthy()) {
+      LOG.error("Burrow server at {} is not healthy, we expect {}/{} to return GOOD", url, url, HEALTH_CHECK);
+      throw new IllegalStateException("Burrow is not healthy or configured incorrectly");
+    }
+  }
+
+  private boolean isHealthy() {
+    Request request = new Request.Builder()
+        .url(PATHS.join(url, HEALTH_CHECK))
+        .get().build();
+    try {
+      Response response = client.newCall(request).execute();
+      return response.isSuccessful() && Objects.requireNonNull(response.body()).string().equals("GOOD");
+    } catch (IOException e) {
+      LOG.warn("Failed to execute the health check", e);
+      return false;
+    }
   }
 
   private HttpUrl address(String... paths) {
