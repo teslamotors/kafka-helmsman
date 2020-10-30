@@ -143,3 +143,30 @@ attribute. If no changes to base config are desired, specify empty dict `{}`
  
 
 Note: `topicsFile` is supported for multi-cluster configuration too.
+
+# Defaults
+
+At the top-level of the configuration (where you put `kafka` and `topics` or `topicsFile`) we also support setting
+`defaults` for either all topics or per-cluster. For example:
+```yaml
+kafka:
+    bootstrap.servers: 'foo_1:9092,foo_2:9092,foo_3:9092'
+
+topicsFile: my-topics.yaml
+
+defaults:
+  partitions: 10
+  clusters:
+    foo:
+      config:
+        retention.ms: "6000000"
+```
+
+Would default to 10 partitions for all topics in all clusters, and 6000000ms `retention.ms` for all topics in cluster
+ `foo`. The defaults take similar precedence to the topic-level cluster overrides; that is, the priority is:
+ 
+  * cluster-topic overrides
+  * topic configs
+  * cluster default
+  * default 
+

@@ -9,11 +9,13 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import org.junit.Assert;
 import org.junit.Test;
+import tesla.shade.com.google.common.collect.ImmutableMap;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 public class ClusterEntitiesTest {
 
@@ -80,7 +82,11 @@ public class ClusterEntitiesTest {
           });
 
   static List<Map<String, Object>> topics(String conf, String cluster) throws IOException {
-    return ClusterEntities.forCluster(mapper.readValue(conf, type), cluster);
+    return topics(conf, cluster, null);
+  }
+
+  static List<Map<String, Object>> topics(String conf, String cluster, Map<String, Object> defaults) throws IOException {
+    return ClusterEntities.forCluster(mapper.readValue(conf, type), cluster, Optional.ofNullable(defaults));
   }
 
   @Test
@@ -99,6 +105,45 @@ public class ClusterEntitiesTest {
   @Test
   public void testExclusiveOverridesArePreserved() throws IOException {
     Assert.assertEquals(mapper.readValue(clusterThreeFinal, type), topics(conf, "cluster_three"));
+  }
+
+  @Test
+  public void testDefaultValues() throws Exception {
+    List<Map<String, Object>> expected = mapper.readValue(String.join("\n",
+            "---",
+            "- name: topic_b",
+            "  partitions: 1",
+            "  replicationFactor: 1",
+            "  config: ",
+            "    k1: v1",
+            "    k2: v2"), type);
+    Assert.assertEquals(expected,
+        topics(conf, "cluster_three", ImmutableMap.of(
+            "partitions",  "2",
+            "config", ImmutableMap.of(
+                "k2", "v2"
+            )
+        )));
+  }
+
+  @Test
+  public void testDefaultClusterValues() throws Exception {
+    List<Map<String, Object>> expected = mapper.readValue(String.join("\n",
+        "---",
+        "- name: topic_b",
+        "  partitions: 1",
+        "  replicationFactor: 1",
+        "  config: ",
+        "    k1: v1",
+        "    k2: v2"), type);
+    Assert.assertEquals(expected, topics(conf, "cluster_three", mapper.readValue(String.join("\n",
+            "---",
+            "config:",
+            "  k2: v1",
+            "clusters:",
+            "  cluster_three:",
+            "     config:",
+            "       k2: v2"), new TypeReference<Map<String, Object>>(){})));
   }
 
   @Test

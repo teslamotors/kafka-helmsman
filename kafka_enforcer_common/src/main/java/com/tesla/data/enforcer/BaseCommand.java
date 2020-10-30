@@ -4,6 +4,8 @@
 
 package com.tesla.data.enforcer;
 
+import static java.lang.String.format;
+
 import com.beust.jcommander.IStringConverter;
 import com.beust.jcommander.Parameter;
 import com.beust.jcommander.ParameterException;
@@ -21,9 +23,11 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 /**
@@ -82,13 +86,19 @@ public class BaseCommand<T> {
         entitiesKey, cmdConfig.containsKey(entitiesKey), entitiesFileKey, cmdConfig.containsKey(entitiesFileKey));
     Object entities = cmdConfig.containsKey(entitiesKey) ? cmdConfig.get(entitiesKey) : cmdConfig.get(entitiesFileKey);
     Objects.requireNonNull(entities, "Missing entities in config");
+    Optional<Map<String, Object>> defaults = configuredEntities(cmdConfig, "defaults", null, MAP_TYPE);
     List<Map<String, Object>> unParsed = configuredEntities(cmdConfig, entitiesKey, entitiesFileKey);
     final List<Map<String, Object>> forCluster;
     if (cluster == null) {
-      forCluster = unParsed;
+      // if there are defaults, use those as the basis, otherwise just use the discovered entities
+      forCluster = defaults.map(defaultValues ->
+          unParsed.stream().map(entity -> {
+            Map<String, Object> updated = new HashMap<>(defaultValues);
+            return ClusterEntities.applyOverrides(updated, entity);
+          }).collect(Collectors.toList())).orElse(unParsed);
       LOG.info("Cluster is not set");
     } else {
-      forCluster = ClusterEntities.forCluster(unParsed, cluster);
+      forCluster = ClusterEntities.forCluster(unParsed, cluster, defaults);
       LOG.info("Out of total {}, found {} matching entities for cluster {}", unParsed.size(), forCluster.size(), cluster);
     }
     return forCluster.stream()
@@ -101,8 +111,18 @@ public class BaseCommand<T> {
     TypeReference<List<Map<String, Object>>> listOfMaps =
         new TypeReference<List<Map<String, Object>>>() {
         };
+    return configuredEntities(cmdConfig, entitiesKey, entitiesFileKey, listOfMaps).orElseThrow(
+        () -> new IllegalArgumentException(format("Missing entities at %s or %s", entitiesKey, entitiesFileKey)));
+  }
+
+
+  private <ENTITY> Optional<ENTITY> configuredEntities(Map<String, Object> cmdConfig, String entitiesKey,
+                                                       String entitiesFileKey, TypeReference<ENTITY> entity) {
     if (cmdConfig.containsKey(entitiesKey)) {
-      return MAPPER.convertValue(cmdConfig.get(entitiesKey), listOfMaps);
+      return Optional.of(MAPPER.convertValue(cmdConfig.get(entitiesKey), entity));
+    }
+    if (entitiesFileKey == null) {
+      return Optional.empty();
     } else {
       try {
         String entitiesFile = (String) cmdConfig.get(entitiesFileKey);
@@ -112,7 +132,7 @@ public class BaseCommand<T> {
         } else {
           is = Resources.getResource(entitiesFile).openStream();
         }
-        return MAPPER.readValue(is, listOfMaps);
+        return Optional.of(MAPPER.readValue(is, entity));
       } catch (IOException e) {
         throw new ParameterException(
             "Could not load entities from file " + cmdConfig.get(entitiesFileKey), e);
