@@ -18,6 +18,7 @@ java_test(
         "//3rdparty/jvm/com/fasterxml/jackson/core:jackson_core",
         "//3rdparty/jvm/com/fasterxml/jackson/core:jackson_databind",
         "//3rdparty/jvm/com/fasterxml/jackson/dataformat:jackson_dataformat_yaml",
+        "//3rdparty/jvm_shaded/com/google/guava_shaded",
         "//kafka_enforcer_common/src/main/java/com/tesla/data/enforcer",
     ],
 )
@@ -30,6 +31,7 @@ java_test(
     deps = [
         ":dummy",
         "//3rdparty/jvm/org/mockito:mockito_core",
+        "//3rdparty/jvm_shaded/com/google/guava_shaded",
         "//kafka_enforcer_common/src/main/java/com/tesla/data/enforcer",
     ],
 )
