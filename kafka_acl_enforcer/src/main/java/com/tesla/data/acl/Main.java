@@ -4,29 +4,16 @@
 
 package com.tesla.data.acl;
 
-import com.tesla.data.acl.mixin.Json;
 import com.tesla.data.enforcer.BaseCommand;
-import com.tesla.data.enforcer.EnforceCommand;
-import com.tesla.data.enforcer.Enforcer;
 
 import com.beust.jcommander.JCommander;
 import com.beust.jcommander.Parameter;
-import org.apache.kafka.clients.admin.AdminClient;
 import org.apache.kafka.common.acl.AclBinding;
 
 import java.util.HashMap;
 import java.util.Map;
 
 public class Main {
-
-  private static class AclEnforceCommand extends EnforceCommand<AclBinding> {
-    @Override
-    protected Enforcer<AclBinding> initEnforcer(AdminClient client) {
-      Json.addMixIns(MAPPER);
-      return new AclEnforcer(configuredEntities(AclBinding.class, "acls", "aclsFile"),
-          new AclService(client), !unsafemode, dryrun);
-    }
-  }
 
   @Parameter(
       names = {"--help", "-h"},

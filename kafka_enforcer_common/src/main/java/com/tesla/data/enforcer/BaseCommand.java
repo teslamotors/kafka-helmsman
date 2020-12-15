@@ -51,13 +51,13 @@ public class BaseCommand<T> {
       description = "/path/to/a/configuration/file",
       required = true,
       converter = CommandConfigConverter.class)
-  private Map<String, Object> cmdConfig = null;
+  protected Map<String, Object> cmdConfig = null;
 
   @Parameter(
       names = {"--cluster"},
       description = "a cluster name, if specified, " +
           "consolidated (multi-cluster) configuration file is expected")
-  private String cluster = null;
+  protected String cluster = null;
 
   public BaseCommand() {
     // DO NOT REMOVE, this is needed by jcommander
@@ -165,5 +165,4 @@ public class BaseCommand<T> {
       return cmdConfig;
     }
   }
-
 }
