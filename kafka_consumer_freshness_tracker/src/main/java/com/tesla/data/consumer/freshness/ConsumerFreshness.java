@@ -19,6 +19,7 @@ import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import tesla.shade.com.google.common.annotations.VisibleForTesting;
+import tesla.shade.com.google.common.base.Preconditions;
 import tesla.shade.com.google.common.util.concurrent.FutureCallback;
 import tesla.shade.com.google.common.util.concurrent.Futures;
 import tesla.shade.com.google.common.util.concurrent.ListenableFuture;
@@ -36,6 +37,7 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.stream.Collectors;
 
 public class ConsumerFreshness {
@@ -194,9 +196,12 @@ public class ConsumerFreshness {
         Map<String, Object> status;
         try {
           status = client.getConsumerGroupStatus(consumerGroup);
-        } catch (JsonParseException e) {
+          Preconditions.checkState(status.get("partitions") != null,
+              "Burrow response is missing partitions, got {}", status);
+        } catch (JsonParseException | IllegalStateException e) {
           // this happens sometimes, when burrow is acting up
           LOG.error("Failed to read Burrow status for consumer {}. Skipping", consumerGroup, e);
+          metrics.error.labels(client.getCluster(), consumerGroup).inc();
           continue;
         }
         for (Map<String, Object> state : (List<Map<String, Object>>) status.get("partitions")) {
@@ -227,7 +232,7 @@ public class ConsumerFreshness {
 
             @Override
             public void onFailure(Throwable throwable) {
-              metrics.error.labels(client.getCluster(), consumerGroup);
+              metrics.error.labels(client.getCluster(), consumerGroup).inc();
               workers.add(worker);
             }
           }, this.executor);
@@ -235,8 +240,12 @@ public class ConsumerFreshness {
         }
       }
       metrics.lastClusterRunSuccessfulAttempt.labels(client.getCluster()).setToCurrentTime();
-    } catch (IOException | InterruptedException e) {
+    } catch (RejectedExecutionException e) {
+      LOG.error("Failed to run freshness lookup for cluster {}, shutting down...", client.getCluster(), e);
+      throw e;
+    } catch (IOException | InterruptedException | RuntimeException e) {
       LOG.error("Failed to handle cluster {}", client.getCluster(), e);
+      metrics.burrowClustersConsumersReadFailed.labels(client.getCluster()).inc();
     }
     return completed;
   }
@@ -252,5 +261,9 @@ public class ConsumerFreshness {
           .flatMap(Collection::stream)
           .forEach(KafkaConsumer::close);
     }
+  }
+
+  public FreshnessMetrics getMetricsForTesting() {
+    return this.metrics;
   }
 }

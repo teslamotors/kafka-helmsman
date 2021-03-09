@@ -18,6 +18,7 @@ public class FreshnessMetrics {
   final Counter failed;
   final Counter invalid;
   final Counter error;
+  final Counter burrowClustersConsumersReadFailed;
   final Counter burrowClustersReadFailed;
   final Gauge freshness;
   final Histogram kafkaQueryLatency;
@@ -61,6 +62,11 @@ public class FreshnessMetrics {
         .name("kafka_consumer_freshness_runtime_query_exception")
         .help("Number of Kafka queries that threw an exception")
         .labelNames("cluster", "consumer")
+        .register();
+    burrowClustersConsumersReadFailed = new Counter.Builder()
+        .name("kafka_consumer_freshness_runtime_failed_burrow_cluster_consumers_read")
+        .help("Number of times we failed to lookup a cluster's consumers from burrow")
+        .labelNames("cluster")
         .register();
     burrowClustersReadFailed = new Counter.Builder()
         .name("kafka_consumer_freshness_runtime_failed_burrow_clusters_read")
