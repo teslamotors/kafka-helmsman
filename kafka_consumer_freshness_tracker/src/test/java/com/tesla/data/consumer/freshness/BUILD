@@ -27,6 +27,7 @@ java_test(
     name = "ConsumerFreshnessTest",
     srcs = ["ConsumerFreshnessTest.java"],
     deps = [
+        "//3rdparty/jvm/com/fasterxml/jackson/core:jackson_core",
         "//3rdparty/jvm/junit",
         "//3rdparty/jvm/org/apache/kafka:kafka_clients",
         "//3rdparty/jvm/org/mockito:mockito_all",

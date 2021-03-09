@@ -13,6 +13,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static tesla.shade.com.google.common.collect.Lists.newArrayList;
 
+import com.fasterxml.jackson.core.JsonParseException;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
@@ -24,6 +25,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.RejectedExecutionException;
 
 public class ConsumerFreshnessTest {
 
@@ -102,10 +104,10 @@ public class ConsumerFreshnessTest {
   }
 
   /**
-   * If burrow is having problems, we should fail because there is no more useful work to do
+   * If burrow is having problems, we should ride over consumer group lookup failures.
    */
-  @Test(expected = RuntimeException.class)
-  public void testFailingToReadConsumerGroupExitsTracker() throws Exception {
+  @Test
+  public void testFailingToReadConsumerGroupSkipsCluster() throws Exception {
     Burrow burrow = mock(Burrow.class);
     ConsumerFreshness freshness = new ConsumerFreshness();
     freshness.setupForTesting(burrow, workers("cluster"), null);
@@ -114,13 +116,42 @@ public class ConsumerFreshnessTest {
     when(burrow.getClusters()).thenReturn(newArrayList(client));
     when(client.consumerGroups()).thenThrow(new RuntimeException("injected"));
     freshness.run();
+    assertEquals(1.0, freshness.getMetricsForTesting().burrowClustersConsumersReadFailed.labels("cluster").get(), 0.0);
+  }
+
+  @Test
+  public void testFailingToReadConsumerGroupFromBurrowMarksError() throws Exception {
+    Burrow burrow = mock(Burrow.class);
+    ConsumerFreshness freshness = new ConsumerFreshness();
+    freshness.setupForTesting(burrow, workers("cluster"), null);
+
+    Burrow.ClusterClient client = mockClusterState("cluster", "group");
+    when(burrow.getClusters()).thenReturn(newArrayList(client));
+    when(client.consumerGroups()).thenReturn(newArrayList("group"));
+    when(client.getConsumerGroupStatus("group")).thenThrow(mock(JsonParseException.class));
+    freshness.run();
+    assertEquals(1.0, freshness.getMetricsForTesting().error.labels("cluster", "group").get(), 0.0);
+  }
+
+  @Test
+  public void testMissingConsumerGroupPartitionsMarksError() throws Exception {
+    Burrow burrow = mock(Burrow.class);
+    ConsumerFreshness freshness = new ConsumerFreshness();
+    freshness.setupForTesting(burrow, workers("cluster"), null);
+
+    Burrow.ClusterClient client = mockClusterState("cluster", "group");
+    when(burrow.getClusters()).thenReturn(newArrayList(client));
+    when(client.consumerGroups()).thenReturn(newArrayList("group"));
+    when(client.getConsumerGroupStatus("group")).thenReturn(new HashMap<>());
+    freshness.run();
+    assertEquals(1.0, freshness.getMetricsForTesting().error.labels("cluster", "group").get(), 0.0);
   }
 
   /**
-   * Something is quite wrong with the executor, so give up. We assume the executor will just queue outstanding work,
-   * so this means something is very wrong.
+   * Something is quite wrong with the executor, so give up. We assume the executor will just queue outstanding work, so
+   * this means something is very wrong.
    */
-  @Test(expected = RuntimeException.class)
+  @Test
   public void testFailToSubmitTaskExitsTracker() throws Exception {
     Burrow burrow = mock(Burrow.class);
     ListeningExecutorService executor = mock(ListeningExecutorService.class);
@@ -130,9 +161,9 @@ public class ConsumerFreshnessTest {
     Burrow.ClusterClient client = mockClusterState("cluster", "group",
         partitionState("t", 1, 1, 0));
     when(burrow.getClusters()).thenReturn(newArrayList(client));
-    when(client.consumerGroups()).thenThrow(new RuntimeException("injected"));
+    when(client.consumerGroups()).thenReturn(newArrayList());
 
-    when(executor.submit(any(FreshnessTracker.class))).thenThrow(new RuntimeException("injected"));
+    when(executor.submit(any(FreshnessTracker.class))).thenThrow(new RejectedExecutionException("injected"));
     freshness.run();
   }
 
