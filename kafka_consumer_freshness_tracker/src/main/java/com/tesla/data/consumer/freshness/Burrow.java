@@ -80,13 +80,26 @@ class Burrow {
   }
 
   private Map<String, Object> request(String... paths) throws IOException {
+    Response response = null;
     HttpUrl url = address(paths);
     LOG.debug("GET {}", url);
     Request request = new Request.Builder()
         .url(url)
         .get().build();
-    Response response = client.newCall(request).execute();
-    return MAPPER.readValue(response.body().byteStream(), Map.class);
+    try {
+      response = client.newCall(request).execute();
+      // burrow will build a valid map with the body for invalid responses (i.e. consumer group not found), so we
+      // need to check that the response was failure.
+      if (!response.isSuccessful()) {
+        throw new IOException("Request was not successful");
+      }
+      return MAPPER.readValue(response.body().byteStream(), Map.class);
+    } catch (IOException e) {
+      // ensure to log the response (which includes the request) for debugging purposes, its not usually going to be
+      // included in the error message
+      LOG.error("Failed to complete request:" + (response == null ? request : response), e);
+      throw e;
+    }
   }
 
   public List<String> consumerGroups(String cluster) throws IOException {

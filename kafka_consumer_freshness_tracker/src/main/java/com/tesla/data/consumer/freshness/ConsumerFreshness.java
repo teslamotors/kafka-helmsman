@@ -156,7 +156,7 @@ public class ConsumerFreshness {
       try {
         clusters = burrow.getClusters();
       } catch (IOException e) {
-        LOG.error("Failed to read from burrow", e);
+        LOG.error("Failed to read clusters from burrow", e);
         this.metrics.burrowClustersReadFailed.inc();
         return null;
       }
@@ -198,7 +198,7 @@ public class ConsumerFreshness {
           status = client.getConsumerGroupStatus(consumerGroup);
           Preconditions.checkState(status.get("partitions") != null,
               "Burrow response is missing partitions, got {}", status);
-        } catch (JsonParseException | IllegalStateException e) {
+        } catch (IOException | IllegalStateException e) {
           // this happens sometimes, when burrow is acting up
           LOG.error("Failed to read Burrow status for consumer {}. Skipping", consumerGroup, e);
           metrics.error.labels(client.getCluster(), consumerGroup).inc();
