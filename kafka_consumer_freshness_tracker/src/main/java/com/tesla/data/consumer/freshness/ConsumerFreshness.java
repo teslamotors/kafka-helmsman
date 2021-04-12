@@ -204,15 +204,19 @@ public class ConsumerFreshness {
           metrics.error.labels(client.getCluster(), consumerGroup).inc();
           continue;
         }
-        for (Map<String, Object> state : (List<Map<String, Object>>) status.get("partitions")) {
+        boolean anyEndOffsetFound = false;
+        List<Map<String, Object>> partitions = (List<Map<String, Object>>) status.get("partitions");
+        for (Map<String, Object> state : partitions) {
           String topic = (String) state.get("topic");
           int partition = (int) state.get("partition");
           Map<String, Object> end = (Map<String, Object>) state.get("end");
           if (end == null) {
-            LOG.error("Skipping {} - {}:{} because no offset found", consumerGroup, topic, partition);
+            LOG.debug("Skipping {}:{} - {}:{} because no offset found",
+                client.getCluster(), consumerGroup, topic, partition);
             this.metrics.missing.inc();
             continue;
           }
+          anyEndOffsetFound = true;
           long offset = Long.valueOf(end.get("offset").toString());
           boolean upToDate = Long.valueOf(state.get("current_lag").toString()) == 0;
           FreshnessTracker.ConsumerOffset consumerState =
@@ -237,6 +241,12 @@ public class ConsumerFreshness {
             }
           }, this.executor);
           completed.add(result);
+        }
+        // only log if no end-offset found for any partition, it reduces the verbosity by pointing out full consumer
+        // groups that are in weird state.
+        if(partitions.size() > 0 && !anyEndOffsetFound){
+          LOG.warn("Skipping {}: {} because no end-offsets found for any of the {} topic/partitions",
+              client.getCluster(), consumerGroup, partitions.size());
         }
       }
       metrics.lastClusterRunSuccessfulAttempt.labels(client.getCluster()).setToCurrentTime();

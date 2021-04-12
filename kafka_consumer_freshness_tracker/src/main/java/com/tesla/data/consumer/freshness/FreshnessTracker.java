@@ -61,7 +61,7 @@ class FreshnessTracker implements Runnable {
         // producer or broker is only supposed to record non-negative timestamps, however
         // a non-standard client or client on a very old version may produce records with
         // negative timestamps -- we ignore those.
-        LOG.error("Read invalid offset for {} ({}) : {}", consumer.group, consumer.tp, entered.get());
+        LOG.info("Read invalid offset for {} ({}) : {}", consumer.group, consumer.tp, entered.get());
         metrics.invalid.labels(this.consumer.cluster, this.consumer.group).inc();
         return;
       }
