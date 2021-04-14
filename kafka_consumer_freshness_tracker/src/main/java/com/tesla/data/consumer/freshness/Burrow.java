@@ -91,7 +91,7 @@ class Burrow {
       // burrow will build a valid map with the body for invalid responses (i.e. consumer group not found), so we
       // need to check that the response was failure.
       if (!response.isSuccessful()) {
-        throw new IOException("Request was not successful");
+        throw new IOException("Response was not successful: " + response);
       }
       return MAPPER.readValue(response.body().byteStream(), Map.class);
     } catch (IOException e) {

@@ -5,7 +5,6 @@
 package com.tesla.data.consumer.freshness;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.fail;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.argThat;
 import static org.mockito.Mockito.verify;
@@ -21,7 +20,9 @@ import okhttp3.Response;
 import okhttp3.ResponseBody;
 import org.hamcrest.BaseMatcher;
 import org.hamcrest.Description;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.ExpectedException;
 import org.mockito.Mockito;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
@@ -43,6 +44,9 @@ public class BurrowTest {
   static {
     CONF.put("cluster", "cluster");
   }
+
+  @Rule
+  public ExpectedException thrown = ExpectedException.none();
 
   @Test
   public void testConsumers() throws Exception {
@@ -95,7 +99,7 @@ public class BurrowTest {
   }
 
   @Test
-  public void testThrowExceptionOnUnsuccessfulResponse() {
+  public void testThrowExceptionOnUnsuccessfulResponse() throws IOException {
     OkHttpClient client = Mockito.mock(OkHttpClient.class);
     Map<String, Object> response = new HashMap<>();
     List<String> expected = Lists.newArrayList("c1", "c2");
@@ -103,26 +107,18 @@ public class BurrowTest {
     when(client.newCall(any())).then(respondWithJson(response, 404));
 
     Burrow burrow = new Burrow(CONF, client);
-    try {
-      burrow.getConsumerGroupStatus("mycluster", "mygroup");
-      fail("Should have thrown an exception when got a unsuccesful response");
-    } catch (IOException e) {
-      // expected
-    }
+    thrown.expect(IOException.class);
+    burrow.getConsumerGroupStatus("mycluster", "mygroup");
   }
 
   @Test
-  public void testFailGroupLookupWhenResponseIsNotAMap(){
+  public void testFailGroupLookupWhenResponseIsNotAMap() throws IOException {
     OkHttpClient client = Mockito.mock(OkHttpClient.class);
     when(client.newCall(any())).then(respondWithJson("foo-bar"));
 
     Burrow burrow = new Burrow(CONF, client);
-    try {
-      burrow.getConsumerGroupStatus("mycluster", "mygroup");
-      fail("Should have thrown an exception when got a non-map type response");
-    } catch (IOException e) {
-      // expected
-    }
+    thrown.expect(IOException.class);
+    burrow.getConsumerGroupStatus("mycluster", "mygroup");
   }
 
   private Request expectPath(String path) {
