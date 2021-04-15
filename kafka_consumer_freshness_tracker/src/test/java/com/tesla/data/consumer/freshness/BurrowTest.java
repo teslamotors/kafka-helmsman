@@ -20,12 +20,15 @@ import okhttp3.Response;
 import okhttp3.ResponseBody;
 import org.hamcrest.BaseMatcher;
 import org.hamcrest.Description;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.ExpectedException;
 import org.mockito.Mockito;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 import tesla.shade.com.google.common.collect.Lists;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -41,6 +44,9 @@ public class BurrowTest {
   static {
     CONF.put("cluster", "cluster");
   }
+
+  @Rule
+  public ExpectedException thrown = ExpectedException.none();
 
   @Test
   public void testConsumers() throws Exception {
@@ -92,6 +98,29 @@ public class BurrowTest {
     verify(client).newCall(expectPath("/v3/kafka"));
   }
 
+  @Test
+  public void testThrowExceptionOnUnsuccessfulResponse() throws IOException {
+    OkHttpClient client = Mockito.mock(OkHttpClient.class);
+    Map<String, Object> response = new HashMap<>();
+    List<String> expected = Lists.newArrayList("c1", "c2");
+    response.put("clusters", expected);
+    when(client.newCall(any())).then(respondWithJson(response, 404));
+
+    Burrow burrow = new Burrow(CONF, client);
+    thrown.expect(IOException.class);
+    burrow.getConsumerGroupStatus("mycluster", "mygroup");
+  }
+
+  @Test
+  public void testFailGroupLookupWhenResponseIsNotAMap() throws IOException {
+    OkHttpClient client = Mockito.mock(OkHttpClient.class);
+    when(client.newCall(any())).then(respondWithJson("foo-bar"));
+
+    Burrow burrow = new Burrow(CONF, client);
+    thrown.expect(IOException.class);
+    burrow.getConsumerGroupStatus("mycluster", "mygroup");
+  }
+
   private Request expectPath(String path) {
     return argThat(new BaseMatcher<Request>() {
       @Override
@@ -108,6 +137,10 @@ public class BurrowTest {
   }
 
   private Answer<Call> respondWithJson(Object o) {
+    return respondWithJson(o, 200);
+  }
+
+  private Answer<Call> respondWithJson(Object o, int code) {
     return new Answer<Call>() {
       @Override
       public Call answer(InvocationOnMock invocationOnMock) throws Throwable {
@@ -118,7 +151,7 @@ public class BurrowTest {
           Response response = new Response.Builder()
               .request(request)
               .body(body)
-              .code(200)
+              .code(code)
               .protocol(Protocol.HTTP_1_1)
               .message("Response")
               .build();

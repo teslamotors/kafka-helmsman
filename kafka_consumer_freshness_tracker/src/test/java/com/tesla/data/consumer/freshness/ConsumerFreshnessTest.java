@@ -128,7 +128,7 @@ public class ConsumerFreshnessTest {
     Burrow.ClusterClient client = mockClusterState("cluster", "group");
     when(burrow.getClusters()).thenReturn(newArrayList(client));
     when(client.consumerGroups()).thenReturn(newArrayList("group"));
-    when(client.getConsumerGroupStatus("group")).thenThrow(mock(JsonParseException.class));
+    when(client.getConsumerGroupStatus("group")).thenThrow(mock(IOException.class));
     freshness.run();
     assertEquals(1.0, freshness.getMetricsForTesting().error.labels("cluster", "group").get(), 0.0);
   }

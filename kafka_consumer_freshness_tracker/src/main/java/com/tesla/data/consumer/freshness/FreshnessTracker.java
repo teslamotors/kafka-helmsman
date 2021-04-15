@@ -11,6 +11,7 @@ import org.apache.kafka.common.TopicPartition;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import tesla.shade.com.google.common.annotations.VisibleForTesting;
+import tesla.shade.com.google.common.base.MoreObjects;
 import tesla.shade.com.google.common.base.Preconditions;
 import tesla.shade.com.google.common.collect.Streams;
 
@@ -52,7 +53,7 @@ class FreshnessTracker implements Runnable {
       metrics.kafkaRead.labels(this.consumer.cluster, this.consumer.group).inc();
       if (!entered.isPresent()) {
         // maybe the processor is very slow (or stream is high volume) and we lost the offset
-        LOG.error("Failed to load offset for {} ({}) : {}", consumer.group, consumer.tp, firstUncommittedOffset);
+        LOG.error("Failed to load offset for {} : {}", consumer, firstUncommittedOffset);
         metrics.failed.labels(this.consumer.cluster, this.consumer.group).inc();
         return;
       }
@@ -61,7 +62,7 @@ class FreshnessTracker implements Runnable {
         // producer or broker is only supposed to record non-negative timestamps, however
         // a non-standard client or client on a very old version may produce records with
         // negative timestamps -- we ignore those.
-        LOG.info("Read invalid offset for {} ({}) : {}", consumer.group, consumer.tp, entered.get());
+        LOG.info("Read invalid offset for {} : {}", consumer, entered.get());
         metrics.invalid.labels(this.consumer.cluster, this.consumer.group).inc();
         return;
       }
@@ -75,14 +76,19 @@ class FreshnessTracker implements Runnable {
 
   private Optional<Long> getOffsetIngestTime(long offset) {
     Collection<TopicPartition> tps = Collections.singletonList(from);
-    return metrics.kafkaQueryLatency.labels("offset").time(() -> {
-      kafka.assign(tps);
-      seekFrom(offset);
-      ConsumerRecords records = this.kafka.poll(Duration.ofSeconds(2));
-      return (Optional<Long>) Streams.<ConsumerRecord>stream(records)
-          .findFirst()
-          .map(record -> ((ConsumerRecord) record).timestamp());
-    });
+    try {
+      return metrics.kafkaQueryLatency.labels("offset").time(() -> {
+        kafka.assign(tps);
+        seekFrom(offset);
+        ConsumerRecords records = this.kafka.poll(Duration.ofSeconds(2));
+        return (Optional<Long>) Streams.<ConsumerRecord>stream(records)
+            .findFirst()
+            .map(record -> ((ConsumerRecord) record).timestamp());
+      });
+    } catch (Throwable t) {
+      LOG.error("Failed to read {} from Kafka - maybe an SSL/connectivity error?", consumer, t);
+      return Optional.empty();
+    }
   }
 
   /**
@@ -126,6 +132,17 @@ class FreshnessTracker implements Runnable {
       this.tp = new TopicPartition(topic, partition);
       this.offset = offset;
       this.upToDate = upToDate;
+    }
+
+    @Override
+    public String toString() {
+      return MoreObjects.toStringHelper(this)
+          .add("cluster", cluster)
+          .add("group", group)
+          .add("tp", tp)
+          .add("offset", offset)
+          .add("upToDate", upToDate)
+          .toString();
     }
   }
 
