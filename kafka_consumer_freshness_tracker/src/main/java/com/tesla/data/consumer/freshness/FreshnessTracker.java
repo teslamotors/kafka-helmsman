@@ -87,7 +87,7 @@ class FreshnessTracker implements Runnable {
       });
     } catch (Throwable t) {
       LOG.error("Failed to read {} from Kafka - maybe an SSL/connectivity error?", consumer, t);
-      return Optional.empty();
+      throw t instanceof RuntimeException ? (RuntimeException) t : new RuntimeException(t);
     }
   }
 

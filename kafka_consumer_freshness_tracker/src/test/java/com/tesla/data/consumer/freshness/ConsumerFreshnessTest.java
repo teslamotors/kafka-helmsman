@@ -4,30 +4,57 @@
 
 package com.tesla.data.consumer.freshness;
 
+import static java.util.Arrays.asList;
+import static org.apache.kafka.clients.consumer.ConsumerRecord.NULL_CHECKSUM;
+import static org.apache.kafka.clients.consumer.ConsumerRecord.NULL_SIZE;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 import static tesla.shade.com.google.common.collect.Lists.newArrayList;
 
-import com.fasterxml.jackson.core.JsonParseException;
+import com.google.common.collect.ImmutableMap;
+import io.prometheus.client.Gauge;
+import org.apache.kafka.clients.consumer.ConsumerRecord;
+import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
+import org.apache.kafka.common.TopicPartition;
+import org.apache.kafka.common.record.TimestampType;
+import org.junit.Rule;
 import org.junit.Test;
-import org.mockito.ArgumentCaptor;
+import org.junit.rules.ExpectedException;
+import org.mockito.Mock;
+import org.mockito.Mockito;
 import tesla.shade.com.google.common.collect.Lists;
-import tesla.shade.com.google.common.util.concurrent.ListenableFuture;
 import tesla.shade.com.google.common.util.concurrent.ListeningExecutorService;
+import tesla.shade.com.google.common.util.concurrent.MoreExecutors;
 
 import java.io.IOException;
+import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
+import java.util.function.Consumer;
 
+/**
+ * Validate that we compute freshness and handle errors as expected. Specifically, for errors, we do the following:
+ *  * rejected freshness lookup -> fail the application (something very wrong)
+ *  * interrupted while waiting for a consumer -> mark the cluster as failed
+ *  * freshness computation throws an exception -> marks the group as a failure
+ *  * Burrow errors (failed response, bad data, etc.)
+ *    * find all clusters -> fail run, mark error
+ *    * find all consumers in a cluster -> mark the cluster as failed
+ *    * find status of a consumer -> skip the consumer, mark the consumer as failed, but not the cluster
+ *    * missing partition end offset -> mark missing, skip partition
+ */
 public class ConsumerFreshnessTest {
+
+  @Rule
+  public ExpectedException thrown = ExpectedException.none();
 
   @Test
   public void testTranslateZeroLagAsUpToDate() throws Exception {
@@ -36,26 +63,24 @@ public class ConsumerFreshnessTest {
         partitionState("topic1", 1, 10, 0));
     when(burrow.getClusters()).thenReturn(newArrayList(client));
 
-    ListeningExecutorService executor = mock(ListeningExecutorService.class);
-    ListenableFuture future = mock(ListenableFuture.class);
-    when(executor.submit(any((FreshnessTracker.class)))).thenReturn(future);
+    withExecutor(executor -> {
+      Map<String, ArrayBlockingQueue<KafkaConsumer>> workers = workers("cluster1");
+      ConsumerFreshness freshness = new ConsumerFreshness();
+      freshness.setupForTesting(burrow, workers, executor);
+      freshness.run();
 
-    ConsumerFreshness freshness = new ConsumerFreshness();
-    freshness.setupForTesting(burrow, workers("cluster1"), executor);
-    freshness.run();
+      FreshnessMetrics metrics = freshness.getMetricsForTesting();
+      assertEquals("Should be no log for an up-to-date consumer", 0,
+          metrics.freshness.labels("cluster1", "group1", "topic1", "1").get(),
+          0.0);
 
-    ArgumentCaptor<FreshnessTracker> argument = ArgumentCaptor.forClass(FreshnessTracker.class);
-    verify(executor).submit(argument.capture());
-    FreshnessTracker.ConsumerOffset offset = argument.getValue().getConsumerForTesting();
-    assertEquals("cluster1", offset.cluster);
-    assertEquals("group1", offset.group);
-    assertEquals("topic1", offset.tp.topic());
-    assertEquals(1, offset.tp.partition());
-    assertEquals(10, offset.offset);
-    assertTrue("Consumer should not be lagging", offset.upToDate);
-
-    // we should be waiting until the future is complete before returning
-    verify(future).get();
+      // if there is no burrow lag, we shouldn't even try to read kafka
+      try {
+        verifyZeroInteractions(workers.get("cluster1").take());
+      } catch (InterruptedException e) {
+        throw new RuntimeException(e);
+      }
+    });
   }
 
   /**
@@ -63,64 +88,123 @@ public class ConsumerFreshnessTest {
    */
   @Test
   public void testLargeCurrentLag() throws Exception {
+    long lagMs = 2285339353L;
     Burrow burrow = mock(Burrow.class);
     Burrow.ClusterClient client = mockClusterState("cluster1", "group1",
-        partitionState("topic1", 1, 10, 2285339353L));
+        partitionState("topic1", 1, 10, lagMs));
     when(burrow.getClusters()).thenReturn(newArrayList(client));
 
-    ListeningExecutorService executor = mock(ListeningExecutorService.class);
-    ListenableFuture future = mock(ListenableFuture.class);
-    when(executor.submit(any((FreshnessTracker.class)))).thenReturn(future);
+    withExecutor(executor ->{
+      KafkaConsumer consumer = mock(KafkaConsumer.class);
+      when(consumer.poll(Mockito.any(Duration.class))).thenReturn(records("topic", 1, 10, lagMs));
+      ConsumerFreshness freshness = new ConsumerFreshness();
+      freshness.setupForTesting(burrow, workers("cluster1", consumer), executor);
+      freshness.run();
 
-    ConsumerFreshness freshness = new ConsumerFreshness();
-    freshness.setupForTesting(burrow, workers("cluster1"), executor);
-    freshness.run();
+      FreshnessMetrics metrics = freshness.getMetricsForTesting();
 
-    ArgumentCaptor<FreshnessTracker> argument = ArgumentCaptor.forClass(FreshnessTracker.class);
-    verify(executor).submit(argument.capture());
-    FreshnessTracker.ConsumerOffset offset = argument.getValue().getConsumerForTesting();
-    assertEquals("cluster1", offset.cluster);
-    assertEquals("group1", offset.group);
-    assertEquals("topic1", offset.tp.topic());
-    assertEquals(1, offset.tp.partition());
-    assertEquals(10, offset.offset);
-    assertFalse("Consumer should be lagging", offset.upToDate);
+      Gauge.Child measurement = metrics.freshness.labels("cluster1", "group1", "topic1", "1");
+      assertTrue("Should have at least the specified lag for the group "+lagMs+", but found"+measurement.get(),
+          measurement.get() >= lagMs);
+    });
+  }
 
-    // we should be waiting until the future is complete before returning
-    verify(future).get();
+  @Test
+  public void testFailClusterWhenInterruptedWaitingForAConsumer() throws Exception {
+    Burrow burrow = mock(Burrow.class);
+    Burrow.ClusterClient client = mockClusterState("cluster1", "group1",
+        partitionState("topic1", 1, 10, 10L));
+    when(burrow.getClusters()).thenReturn(newArrayList(client));
+
+    withExecutor(executor ->{
+      // create an empty queue of workers so #take blocks forever, giving us the opportunity to interrupt the thread.
+      Map<String, ArrayBlockingQueue<KafkaConsumer>> workers = new HashMap<>(1);
+      ArrayBlockingQueue<KafkaConsumer> queue = new ArrayBlockingQueue<>(1);
+      workers.put("cluster1", queue);
+
+      ConsumerFreshness freshness = new ConsumerFreshness();
+      freshness.setupForTesting(burrow, workers, executor);
+
+      // run it in a separate thread to emulate it running as a process that gets interrupted
+      Thread t = new Thread(freshness::run);
+      t.start();
+      t.interrupt();
+      try {
+        t.join();
+      } catch (InterruptedException e) {
+        throw new RuntimeException(e);
+      }
+
+      assertNoSuccessfulClusterMeasurement(freshness, "cluster1");
+      FreshnessMetrics metrics = freshness.getMetricsForTesting();
+      assertEquals(1, metrics.burrowClustersConsumersReadFailed.labels("cluster1").get(), 0.0);
+    });
+  }
+
+  @Test
+  public void testFailConsumerButNotClusterIfComputationFails() throws Exception {
+    Burrow burrow = mock(Burrow.class);
+    Burrow.ClusterClient client = mockClusterState("cluster1", "group1",
+        partitionState("topic1", 1, 10, 10L));
+    when(burrow.getClusters()).thenReturn(newArrayList(client));
+
+    withExecutor(executor -> {
+      KafkaConsumer consumer = mock(KafkaConsumer.class);
+      when(consumer.poll(Mockito.any(Duration.class))).thenThrow(new RuntimeException("injected"));
+
+      ConsumerFreshness freshness = new ConsumerFreshness();
+      freshness.setupForTesting(burrow, workers("cluster1", consumer), executor);
+      freshness.run();
+
+      assertSuccessfulClusterMeasurement(freshness, "cluster1");
+      FreshnessMetrics metrics = freshness.getMetricsForTesting();
+      assertEquals(1, metrics.error.labels("cluster1", "group1").get(), 1.0);
+    });
   }
 
   /**
    * If burrow is having problems, we should fail because there is no more useful work to do
    */
-  @Test(expected = RuntimeException.class)
-  public void testFailingToReadBurrowExitsTracker() throws Exception {
+  @Test
+  public void testBurrowFailReadClustersRuntime() throws Exception {
     Burrow burrow = mock(Burrow.class);
     when(burrow.getClusters()).thenThrow(new RuntimeException("injected"));
     ConsumerFreshness freshness = new ConsumerFreshness();
     freshness.setupForTesting(burrow, workers(), null);
-
+    thrown.expect(RuntimeException.class);
     freshness.run();
+  }
+
+  @Test
+  public void testBurrowFailReadClustersIOException() throws Exception {
+    Burrow burrow = mock(Burrow.class);
+    when(burrow.getClusters()).thenThrow(new IOException("injected"));
+    ConsumerFreshness freshness = new ConsumerFreshness();
+    freshness.setupForTesting(burrow, workers(), null);
+    freshness.run();
+    assertEquals("IOException from burrow should mark the burrowClustersReadFailed metric", 1,
+        freshness.getMetricsForTesting().burrowClustersReadFailed.get(), 0.0);
   }
 
   /**
    * If burrow is having problems, we should ride over consumer group lookup failures.
    */
   @Test
-  public void testFailingToReadConsumerGroupSkipsCluster() throws Exception {
+  public void testBurrowFailingToReadConsumerGroupsMarksClusterFailure() throws Exception {
     Burrow burrow = mock(Burrow.class);
     ConsumerFreshness freshness = new ConsumerFreshness();
     freshness.setupForTesting(burrow, workers("cluster"), null);
 
     Burrow.ClusterClient client = mockClusterState("cluster", "group");
     when(burrow.getClusters()).thenReturn(newArrayList(client));
-    when(client.consumerGroups()).thenThrow(new RuntimeException("injected"));
+    when(client.consumerGroups()).thenThrow(new IOException("injected"));
     freshness.run();
     assertEquals(1.0, freshness.getMetricsForTesting().burrowClustersConsumersReadFailed.labels("cluster").get(), 0.0);
+    assertNoSuccessfulClusterMeasurement(freshness, "cluster");
   }
 
   @Test
-  public void testFailingToReadConsumerGroupFromBurrowMarksError() throws Exception {
+  public void testBurrowFailingToReadConsumerGroupStatusMarksGroupError() throws Exception {
     Burrow burrow = mock(Burrow.class);
     ConsumerFreshness freshness = new ConsumerFreshness();
     freshness.setupForTesting(burrow, workers("cluster"), null);
@@ -131,10 +215,12 @@ public class ConsumerFreshnessTest {
     when(client.getConsumerGroupStatus("group")).thenThrow(mock(IOException.class));
     freshness.run();
     assertEquals(1.0, freshness.getMetricsForTesting().error.labels("cluster", "group").get(), 0.0);
+    // failing all the groups status lookup should not fail the cluster. Feels weird, but it's the current behavior
+    assertSuccessfulClusterMeasurement(freshness, "cluster");
   }
 
   @Test
-  public void testMissingConsumerGroupPartitionsMarksError() throws Exception {
+  public void testBurrowMissingConsumerGroupPartitionsMarksErrorForGroup() throws Exception {
     Burrow burrow = mock(Burrow.class);
     ConsumerFreshness freshness = new ConsumerFreshness();
     freshness.setupForTesting(burrow, workers("cluster"), null);
@@ -145,11 +231,34 @@ public class ConsumerFreshnessTest {
     when(client.getConsumerGroupStatus("group")).thenReturn(new HashMap<>());
     freshness.run();
     assertEquals(1.0, freshness.getMetricsForTesting().error.labels("cluster", "group").get(), 0.0);
+    // the cluster is overall successful, even though the group fails
+    assertSuccessfulClusterMeasurement(freshness, "cluster");
+  }
+
+  @Test
+  public void testBurrowMissingConsumerGroupPartitionEndOffsetMarksMissing() throws Exception {
+    Burrow burrow = mock(Burrow.class);
+    ConsumerFreshness freshness = new ConsumerFreshness();
+    freshness.setupForTesting(burrow, workers("cluster"), null);
+
+    Burrow.ClusterClient client = mockClusterState("cluster", "group");
+    when(burrow.getClusters()).thenReturn(newArrayList(client));
+    when(client.consumerGroups()).thenReturn(newArrayList("group"));
+    when(client.getConsumerGroupStatus("group")).thenReturn(ImmutableMap.of(
+        "partitions", newArrayList(ImmutableMap.of(
+            "topic", "some-topic",
+            "partition", 1
+        )
+    )));
+    freshness.run();
+    assertEquals(1.0, freshness.getMetricsForTesting().missing.get(), 0.0);
+    // the cluster is overall successful, even though the group fails
+    assertSuccessfulClusterMeasurement(freshness, "cluster");
   }
 
   /**
    * Something is quite wrong with the executor, so give up. We assume the executor will just queue outstanding work, so
-   * this means something is very wrong.
+   * this means something is very wrong, so we should propagate out the exception.
    */
   @Test
   public void testFailToSubmitTaskExitsTracker() throws Exception {
@@ -158,23 +267,54 @@ public class ConsumerFreshnessTest {
     ConsumerFreshness freshness = new ConsumerFreshness();
     freshness.setupForTesting(burrow, workers("cluster"), executor);
 
-    Burrow.ClusterClient client = mockClusterState("cluster", "group",
-        partitionState("t", 1, 1, 0));
+    Burrow.ClusterClient client = mockClusterState("cluster", "group", partitionState("t", 1, 1, 0));
     when(burrow.getClusters()).thenReturn(newArrayList(client));
-    when(client.consumerGroups()).thenReturn(newArrayList());
+    Exception cause = new RejectedExecutionException("injected");
+    when(executor.submit(any(FreshnessTracker.class))).thenThrow(cause);
 
-    when(executor.submit(any(FreshnessTracker.class))).thenThrow(new RejectedExecutionException("injected"));
+    thrown.expect(RuntimeException.class);
+    thrown.expectCause(org.hamcrest.CoreMatchers.equalTo(cause));
     freshness.run();
   }
 
-  private Map<String, ArrayBlockingQueue<KafkaConsumer>> workers(String... clusters) {
-    Map<String, ArrayBlockingQueue<KafkaConsumer>> workers = new HashMap<>(1);
-    for (String cluster : clusters) {
-      KafkaConsumer consumer = mock(KafkaConsumer.class);
-      ArrayBlockingQueue<KafkaConsumer> queue = new ArrayBlockingQueue<>(1);
-      queue.add(consumer);
-      workers.put(cluster, queue);
+  private void assertNoSuccessfulClusterMeasurement(ConsumerFreshness freshness, String cluster){
+    FreshnessMetrics metrics = freshness.getMetricsForTesting();
+    assertEquals("Cluster measurement should not be successful",
+        0.0, metrics.lastClusterRunSuccessfulAttempt.labels(cluster).get(), 0.0);
+  }
+
+  private void assertSuccessfulClusterMeasurement(ConsumerFreshness freshness, String cluster){
+    FreshnessMetrics metrics = freshness.getMetricsForTesting();
+    assertTrue("Cluster measurement should be successful",
+        metrics.lastClusterRunSuccessfulAttempt.labels(cluster).get() > 0);
+  }
+
+  private void withExecutor(Consumer<ListeningExecutorService> toRun) {
+    ListeningExecutorService executor = null;
+    try {
+      executor = MoreExecutors.listeningDecorator(Executors.newFixedThreadPool(3));
+      toRun.accept(executor);
+      assertEquals("Should not be any outstanding tasks after a run completes", 0, executor.shutdownNow().size());
+    } finally {
+      if (executor != null) {
+        executor.shutdown();
+      }
     }
+  }
+
+  private Map<String, ArrayBlockingQueue<KafkaConsumer>> workers(String... clusters) {
+    Map<String, ArrayBlockingQueue<KafkaConsumer>> workers = new HashMap<>(clusters.length);
+    for (String cluster : clusters) {
+      workers.putAll(workers(cluster, mock(KafkaConsumer.class)));
+    }
+    return workers;
+  }
+
+  private Map<String, ArrayBlockingQueue<KafkaConsumer>> workers(String cluster, KafkaConsumer consumer) {
+    Map<String, ArrayBlockingQueue<KafkaConsumer>> workers = new HashMap<>(1);
+    ArrayBlockingQueue<KafkaConsumer> queue = new ArrayBlockingQueue<>(1);
+    queue.add(consumer);
+    workers.put(cluster, queue);
     return workers;
   }
 
@@ -218,5 +358,17 @@ public class ConsumerFreshnessTest {
     end.put("offset", endOffset);
     partition.put("end", end);
     return partition;
+  }
+
+  /**
+   * Create a {@link ConsumerRecords} with a single consumer record at the given topic, partition, offset and lagging
+   * by at least the given milliseconds.
+   */
+  private ConsumerRecords records(String topic, int partition, long offset, long lagMs){
+    return new ConsumerRecords(ImmutableMap.of(
+        new TopicPartition(topic, partition), asList(
+            new ConsumerRecord(topic, partition, offset, System.currentTimeMillis() - lagMs,
+                TimestampType.LOG_APPEND_TIME, NULL_CHECKSUM, NULL_SIZE, NULL_SIZE, "key", "value"))
+    ));
   }
 }
