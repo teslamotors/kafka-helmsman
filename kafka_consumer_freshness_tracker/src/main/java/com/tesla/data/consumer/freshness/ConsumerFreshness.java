@@ -8,7 +8,6 @@ import static java.lang.System.exit;
 
 import com.beust.jcommander.JCommander;
 import com.beust.jcommander.Parameter;
-import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import io.prometheus.client.exporter.HTTPServer;
@@ -34,9 +33,11 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Properties;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.stream.Collectors;
 
@@ -169,15 +170,14 @@ public class ConsumerFreshness {
             }
             return workers != null;
           })
-          // do the work of reading consumers per-cluster
+          .peek(clusterClient -> metrics.lastClusterRunAttempt.labels(clusterClient.getCluster()).setToCurrentTime())
           .map(this::measureCluster)
-          // wait for all the futures to complete
-          .flatMap(Collection::parallelStream)
           .forEach(future -> {
             try {
-              future.get();
+              String cluster = future.get();
+              metrics.lastClusterRunSuccessfulAttempt.labels(cluster).setToCurrentTime();
             } catch (Exception e) {
-              LOG.error("Failed to resolve a consumer", e);
+              LOG.error("Failed to measure a cluster", e);
             }
           });
       // have to return something, we are a callable (so we can throw exceptions more easily)
@@ -185,79 +185,136 @@ public class ConsumerFreshness {
     });
   }
 
-  private List<ListenableFuture> measureCluster(Burrow.ClusterClient client) {
-    List<ListenableFuture> completed = new ArrayList<>();
+  /**
+   * Measure the freshness for all consumers in the cluster.
+   *
+   * @return future containing the cluster name, representing the successful completion of the freshness computation.
+   * {@link Future#get()} will throw an exception if the freshness could not be measured for the cluster.
+   * @throws RuntimeException if there is a systemic problem that should shutdown the application.
+   */
+  private ListenableFuture<String> measureCluster(Burrow.ClusterClient client) {
+    List<ListenableFuture<List<Object>>> completedConsumers = new ArrayList<>();
+    List<String> consumerGroups;
     try {
-      metrics.lastClusterRunAttempt.labels(client.getCluster()).setToCurrentTime();
+      consumerGroups = client.consumerGroups();
+      // add some sanity to the logs
+      Collections.sort(consumerGroups);
+    } catch (IOException e) {
+      LOG.error("Failed to read groups from burrow for cluster {}", client.getCluster(), e);
+      metrics.burrowClustersConsumersReadFailed.labels(client.getCluster()).inc();
+      return Futures.immediateFailedFuture(e);
+    }
+
+    try {
       ArrayBlockingQueue<KafkaConsumer> workers = this.availableWorkers.get(client.getCluster());
-      List<String> consumerGroups = client.consumerGroups();
-      Collections.sort(consumerGroups); // add some sanity to the logs
       for (String consumerGroup : consumerGroups) {
-        Map<String, Object> status;
-        try {
-          status = client.getConsumerGroupStatus(consumerGroup);
-          Preconditions.checkState(status.get("partitions") != null,
-              "Burrow response is missing partitions, got {}", status);
-        } catch (IOException | IllegalStateException e) {
-          // this happens sometimes, when burrow is acting up
-          LOG.error("Failed to read Burrow status for consumer {}. Skipping", consumerGroup, e);
-          metrics.error.labels(client.getCluster(), consumerGroup).inc();
-          continue;
-        }
-        boolean anyEndOffsetFound = false;
-        List<Map<String, Object>> partitions = (List<Map<String, Object>>) status.get("partitions");
-        for (Map<String, Object> state : partitions) {
-          String topic = (String) state.get("topic");
-          int partition = (int) state.get("partition");
-          Map<String, Object> end = (Map<String, Object>) state.get("end");
-          if (end == null) {
-            LOG.debug("Skipping {}:{} - {}:{} because no offset found",
-                client.getCluster(), consumerGroup, topic, partition);
-            this.metrics.missing.inc();
-            continue;
-          }
-          anyEndOffsetFound = true;
-          long offset = Long.valueOf(end.get("offset").toString());
-          boolean upToDate = Long.valueOf(state.get("current_lag").toString()) == 0;
-          FreshnessTracker.ConsumerOffset consumerState =
-              new FreshnessTracker.ConsumerOffset(client.getCluster(), consumerGroup, topic, partition, offset,
-                  upToDate);
-
-          // wait for a worker to become available
-          KafkaConsumer worker = workers.take();
-          ListenableFuture result = this.executor.submit(
-              new FreshnessTracker(consumerState, worker, metrics));
-          // Hand back the consumer to the available workers when the task is complete
-          Futures.addCallback(result, new FutureCallback<Object>() {
-            @Override
-            public void onSuccess(Object o) {
-              workers.add(worker);
-            }
-
-            @Override
-            public void onFailure(Throwable throwable) {
-              metrics.error.labels(client.getCluster(), consumerGroup).inc();
-              workers.add(worker);
-            }
-          }, this.executor);
-          completed.add(result);
-        }
-        // only log if no end-offset found for any partition, it reduces the verbosity by pointing out full consumer
-        // groups that are in weird state.
-        if(partitions.size() > 0 && !anyEndOffsetFound){
-          LOG.warn("Skipping {}: {} because no end-offsets found for any of the {} topic/partitions",
-              client.getCluster(), consumerGroup, partitions.size());
-        }
+        completedConsumers.add(measureConsumer(client, workers, consumerGroup));
       }
-      metrics.lastClusterRunSuccessfulAttempt.labels(client.getCluster()).setToCurrentTime();
+    } catch (InterruptedException e) {
+      LOG.error("Interrupted while measuring consumers for {}", client.getCluster(), e);
+      return Futures.immediateFailedFuture(e);
     } catch (RejectedExecutionException e) {
       LOG.error("Failed to run freshness lookup for cluster {}, shutting down...", client.getCluster(), e);
       throw e;
-    } catch (IOException | InterruptedException | RuntimeException e) {
-      LOG.error("Failed to handle cluster {}", client.getCluster(), e);
-      metrics.burrowClustersConsumersReadFailed.labels(client.getCluster()).inc();
     }
-    return completed;
+
+    // if all the consumer measurements succeed, then we return the cluster name
+    // otherwise, Future.get will throw an exception representing the failure to measure a consumer (and thus the
+    // failure to successfully monitor the cluster).
+    return Futures.whenAllSucceed(completedConsumers).call(client::getCluster, this.executor);
+  }
+
+  /**
+   * Measure the freshness for all the topic/partitions currently consumed by the given consumer group. To maintain
+   * the existing contract, a consumer measurement fails ({@link Future#get()} throws an exception) only if:
+   *  - burrow group status lookup fails
+   *  - execution is interrupted
+   * Failure to actually measure the consumer is swallowed into a log message & metric update; obviously, this is less
+   * than ideal for many cases, but it will be addressed later.
+   *
+   * @param burrow access to burrow
+   * @param workers pool of workers available for querying Kafka
+   * @param consumerGroup name of the consumer group to measure
+   * @return a future representing the measurement of each topic-partition the consumer reads. If any partition
+   * failed to be measured the entire future (i.e. calls to {@link Future#get()}) will be considered a failure.
+   * @throws InterruptedException if the application is interrupted while waiting for an available worker
+   */
+  private ListenableFuture<List<Object>> measureConsumer(Burrow.ClusterClient burrow,
+                                                         ArrayBlockingQueue<KafkaConsumer> workers,
+                                                         String consumerGroup) throws InterruptedException {
+    Map<String, Object> status;
+    try {
+      status = burrow.getConsumerGroupStatus(consumerGroup);
+      Preconditions.checkState(status.get("partitions") != null,
+          "Burrow response is missing partitions, got {}", status);
+    } catch (IOException | IllegalStateException e) {
+      // this happens sometimes, when burrow is acting up (e.g. "bad" consumer names)
+      LOG.error("Failed to read Burrow status for consumer {}. Skipping", consumerGroup, e);
+      metrics.error.labels(burrow.getCluster(), consumerGroup).inc();
+      return Futures.immediateFuture(Collections.emptyList());
+    }
+
+    boolean anyEndOffsetFound = false;
+    List<Map<String, Object>> partitions = (List<Map<String, Object>>) status.get("partitions");
+    List<ListenableFuture<Object>> partitionFreshnessComputation = new ArrayList<>(partitions.size());
+    for (Map<String, Object> state : partitions) {
+      String topic = (String) state.get("topic");
+      int partition = (int) state.get("partition");
+      Map<String, Object> end = (Map<String, Object>) state.get("end");
+      if (end == null) {
+        LOG.debug("Skipping {}:{} - {}:{} because no offset found",
+            burrow.getCluster(), consumerGroup, topic, partition);
+        this.metrics.missing.inc();
+        continue;
+      }
+      anyEndOffsetFound = true;
+      long offset = Long.valueOf(end.get("offset").toString());
+      boolean upToDate = Long.valueOf(state.get("current_lag").toString()) == 0;
+      FreshnessTracker.ConsumerOffset consumerState =
+          new FreshnessTracker.ConsumerOffset(burrow.getCluster(), consumerGroup, topic, partition, offset,
+              upToDate);
+
+      // wait for a consumer to become available
+      KafkaConsumer consumer = workers.take();
+      ListenableFuture result = this.executor.submit(new FreshnessTracker(consumerState, consumer, metrics));
+      // Hand back the consumer to the available workers when the task is complete
+      Futures.addCallback(result, new FutureCallback<Object>() {
+        @Override
+        public void onSuccess(Object o) {
+          workers.add(consumer);
+        }
+
+        @Override
+        public void onFailure(Throwable throwable) {
+          metrics.error.labels(burrow.getCluster(), consumerGroup).inc();
+          workers.add(consumer);
+        }
+      }, this.executor);
+      partitionFreshnessComputation.add(result);
+    }
+
+    // only log if no end-offset found for any partition, it reduces the verbosity by pointing out full consumer
+    // groups that are in weird state.
+    if (partitions.size() > 0 && !anyEndOffsetFound) {
+      LOG.warn("Skipping {}: {} because no end-offsets found for any of the {} topic/partitions",
+          burrow.getCluster(), consumerGroup, partitions.size());
+    }
+
+    // these can all fail and NOT mark the cluster as a failure, so we map it into a "success"
+    return Futures.whenAllComplete(partitionFreshnessComputation).call(() -> {
+      // skip over any future that failed: this consumer is "successful" regardless of each partition's success/failure
+      return partitionFreshnessComputation.stream()
+          .map(partition -> {
+            try {
+              return partition.get();
+            } catch (Exception e) {
+              // skip it!
+              return null;
+            }
+          })
+          .filter(Objects::isNull)
+          .collect(Collectors.toList());
+    }, this.executor);
   }
 
   private void stop() {
