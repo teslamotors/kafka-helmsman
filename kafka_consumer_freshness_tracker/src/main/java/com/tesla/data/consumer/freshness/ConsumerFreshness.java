@@ -256,7 +256,7 @@ public class ConsumerFreshness {
 
     boolean anyEndOffsetFound = false;
     List<Map<String, Object>> partitions = (List<Map<String, Object>>) status.get("partitions");
-    List<ListenableFuture<Object>> partitionFreshnessComputation = new ArrayList<>(partitions.size());
+    List<ListenableFuture<?>> partitionFreshnessComputation = new ArrayList<>(partitions.size());
     for (Map<String, Object> state : partitions) {
       String topic = (String) state.get("topic");
       int partition = (int) state.get("partition");
@@ -268,15 +268,15 @@ public class ConsumerFreshness {
         continue;
       }
       anyEndOffsetFound = true;
-      long offset = Long.valueOf(end.get("offset").toString());
-      boolean upToDate = Long.valueOf(state.get("current_lag").toString()) == 0;
+      long offset = Long.parseLong(end.get("offset").toString());
+      boolean upToDate = Long.parseLong(state.get("current_lag").toString()) == 0;
       FreshnessTracker.ConsumerOffset consumerState =
           new FreshnessTracker.ConsumerOffset(burrow.getCluster(), consumerGroup, topic, partition, offset,
               upToDate);
 
       // wait for a consumer to become available
       KafkaConsumer consumer = workers.take();
-      ListenableFuture result = this.executor.submit(new FreshnessTracker(consumerState, consumer, metrics));
+      ListenableFuture<?> result = this.executor.submit(new FreshnessTracker(consumerState, consumer, metrics));
       // Hand back the consumer to the available workers when the task is complete
       Futures.addCallback(result, new FutureCallback<Object>() {
         @Override
