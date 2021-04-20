@@ -136,8 +136,6 @@ public class ConsumerFreshnessTest {
       }
 
       assertNoSuccessfulClusterMeasurement(freshness, "cluster1");
-      FreshnessMetrics metrics = freshness.getMetricsForTesting();
-      assertEquals(1, metrics.burrowClustersConsumersReadFailed.labels("cluster1").get(), 0.0);
     });
   }
 
@@ -207,53 +205,71 @@ public class ConsumerFreshnessTest {
   public void testBurrowFailingToReadConsumerGroupStatusMarksGroupError() throws Exception {
     Burrow burrow = mock(Burrow.class);
     ConsumerFreshness freshness = new ConsumerFreshness();
-    freshness.setupForTesting(burrow, workers("cluster"), null);
+    withExecutor(executor -> {
+      freshness.setupForTesting(burrow, workers("cluster"), executor);
 
-    Burrow.ClusterClient client = mockClusterState("cluster", "group");
-    when(burrow.getClusters()).thenReturn(newArrayList(client));
-    when(client.consumerGroups()).thenReturn(newArrayList("group"));
-    when(client.getConsumerGroupStatus("group")).thenThrow(mock(IOException.class));
-    freshness.run();
-    assertEquals(1.0, freshness.getMetricsForTesting().error.labels("cluster", "group").get(), 0.0);
-    // failing all the groups status lookup should not fail the cluster. Feels weird, but it's the current behavior
-    assertSuccessfulClusterMeasurement(freshness, "cluster");
+      try {
+        Burrow.ClusterClient client = mockClusterState("cluster", "group");
+        when(burrow.getClusters()).thenReturn(newArrayList(client));
+        when(client.consumerGroups()).thenReturn(newArrayList("group"));
+        when(client.getConsumerGroupStatus("group")).thenThrow(mock(IOException.class));
+        freshness.run();
+        assertEquals(1.0, freshness.getMetricsForTesting().error.labels("cluster", "group").get(), 0.0);
+        // failing all the groups status lookup should not fail the cluster. Feels weird, but it's the current behavior
+        assertSuccessfulClusterMeasurement(freshness, "cluster");
+      } catch (Exception e) {
+        throw new RuntimeException(e);
+      }
+    });
   }
 
   @Test
   public void testBurrowMissingConsumerGroupPartitionsMarksErrorForGroup() throws Exception {
     Burrow burrow = mock(Burrow.class);
     ConsumerFreshness freshness = new ConsumerFreshness();
-    freshness.setupForTesting(burrow, workers("cluster"), null);
+    withExecutor(executor -> {
+      freshness.setupForTesting(burrow, workers("cluster"), executor);
 
-    Burrow.ClusterClient client = mockClusterState("cluster", "group");
-    when(burrow.getClusters()).thenReturn(newArrayList(client));
-    when(client.consumerGroups()).thenReturn(newArrayList("group"));
-    when(client.getConsumerGroupStatus("group")).thenReturn(new HashMap<>());
-    freshness.run();
-    assertEquals(1.0, freshness.getMetricsForTesting().error.labels("cluster", "group").get(), 0.0);
-    // the cluster is overall successful, even though the group fails
-    assertSuccessfulClusterMeasurement(freshness, "cluster");
+      try {
+        Burrow.ClusterClient client = mockClusterState("cluster", "group");
+        when(burrow.getClusters()).thenReturn(newArrayList(client));
+        when(client.consumerGroups()).thenReturn(newArrayList("group"));
+        when(client.getConsumerGroupStatus("group")).thenReturn(new HashMap<>());
+        freshness.run();
+        assertEquals(1.0, freshness.getMetricsForTesting().error.labels("cluster", "group").get(), 0.0);
+        // the cluster is overall successful, even though the group fails
+        assertSuccessfulClusterMeasurement(freshness, "cluster");
+      } catch (Exception e) {
+        throw new RuntimeException(e);
+      }
+    });
   }
 
   @Test
   public void testBurrowMissingConsumerGroupPartitionEndOffsetMarksMissing() throws Exception {
     Burrow burrow = mock(Burrow.class);
     ConsumerFreshness freshness = new ConsumerFreshness();
-    freshness.setupForTesting(burrow, workers("cluster"), null);
+    withExecutor(executor -> {
+      freshness.setupForTesting(burrow, workers("cluster"), executor);
 
-    Burrow.ClusterClient client = mockClusterState("cluster", "group");
-    when(burrow.getClusters()).thenReturn(newArrayList(client));
-    when(client.consumerGroups()).thenReturn(newArrayList("group"));
-    when(client.getConsumerGroupStatus("group")).thenReturn(ImmutableMap.of(
-        "partitions", newArrayList(ImmutableMap.of(
-            "topic", "some-topic",
-            "partition", 1
-        )
-    )));
-    freshness.run();
-    assertEquals(1.0, freshness.getMetricsForTesting().missing.get(), 0.0);
-    // the cluster is overall successful, even though the group fails
-    assertSuccessfulClusterMeasurement(freshness, "cluster");
+      try {
+        Burrow.ClusterClient client = mockClusterState("cluster", "group");
+        when(burrow.getClusters()).thenReturn(newArrayList(client));
+        when(client.consumerGroups()).thenReturn(newArrayList("group"));
+        when(client.getConsumerGroupStatus("group")).thenReturn(ImmutableMap.of(
+            "partitions", newArrayList(ImmutableMap.of(
+                "topic", "some-topic",
+                "partition", 1
+                )
+            )));
+        freshness.run();
+        assertEquals(1.0, freshness.getMetricsForTesting().missing.get(), 0.0);
+        // the cluster is overall successful, even though the group fails
+        assertSuccessfulClusterMeasurement(freshness, "cluster");
+      } catch (Exception e) {
+        throw new RuntimeException(e);
+      }
+    });
   }
 
   /**
