@@ -39,8 +39,8 @@ public class BaseCommand<T> {
   protected static final ObjectMapper MAPPER = new ObjectMapper(new YAMLFactory());
   private static final TypeReference<Map<String, Object>> MAP_TYPE = new TypeReference<Map<String, Object>>() {
   };
-  public static int SUCCESS = 0;
-  public static int FAILURE = 1;
+  public static final int SUCCESS = 0;
+  public static final int FAILURE = 1;
 
   static {
     MAPPER.registerModule(new ParameterNamesModule());
