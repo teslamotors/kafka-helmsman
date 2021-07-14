@@ -57,7 +57,7 @@ public abstract class Enforcer<T> {
   protected Enforcer(Collection<T> configured, Supplier<Collection<T>> existing, BiPredicate<T, T> isEqual, boolean safemode) {
     long distinct = configured.stream().distinct().count();
     checkArgument(configured.size() == distinct, "Found duplicate entities in config");
-    checkArgument(safemode || configured.size() != 0, "Configured entities should not be empty if safemode is off");
+    checkArgument(safemode || !configured.isEmpty(), "Configured entities should not be empty if safemode is off");
     LOG.info("Configured {} entities", configured.size());
     this.isEqual = isEqual;
     this.configured = configured;
@@ -135,7 +135,7 @@ public abstract class Enforcer<T> {
    */
   public void deleteUnexpected() {
     checkState(!safemode, "Deletion is not allowed in safe mode");
-    checkState(configured.size() > 0, "Configured entities can not be empty");
+    checkState(!configured.isEmpty(), "Configured entities can not be empty");
     List<T> toDelete = unexpected();
     float destruction = toDelete.size() * 1.0f / configured.size();
     checkState(destruction <= PERMISSIBLE_DELETION_THRESHOLD,

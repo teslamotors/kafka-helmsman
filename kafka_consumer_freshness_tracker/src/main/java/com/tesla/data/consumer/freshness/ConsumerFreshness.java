@@ -298,7 +298,7 @@ public class ConsumerFreshness {
 
     // only log if no end-offset found for any partition, it reduces the verbosity by pointing out full consumer
     // groups that are in weird state.
-    if (partitions.size() > 0 && !anyEndOffsetFound) {
+    if (!partitions.isEmpty() && !anyEndOffsetFound) {
       LOG.warn("Skipping {}: {} because no end-offsets found for any of the {} topic/partitions",
           burrow.getCluster(), consumerGroup, partitions.size());
     }
