@@ -64,8 +64,7 @@ class Burrow {
     Request request = new Request.Builder()
         .url(PATHS.join(url, HEALTH_CHECK))
         .get().build();
-    try {
-      Response response = client.newCall(request).execute();
+    try (Response response = client.newCall(request).execute()) {
       return response.isSuccessful() && Objects.requireNonNull(response.body()).string().equals("GOOD");
     } catch (IOException e) {
       LOG.warn("Failed to execute the health check", e);
@@ -86,8 +85,9 @@ class Burrow {
     Request request = new Request.Builder()
         .url(url)
         .get().build();
-    try {
-      response = client.newCall(request).execute();
+    try (Response executed = client.newCall(request).execute()) {
+      // set separately so we have a hook outside in the finally block
+      response = executed;
       // burrow will build a valid map with the body for invalid responses (i.e. consumer group not found), so we
       // need to check that the response was failure.
       if (!response.isSuccessful()) {

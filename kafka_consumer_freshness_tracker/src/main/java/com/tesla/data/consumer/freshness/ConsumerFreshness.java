@@ -14,6 +14,7 @@ import io.prometheus.client.exporter.HTTPServer;
 import io.prometheus.client.hotspot.DefaultExports;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
+import okhttp3.Response;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -91,7 +92,9 @@ public class ConsumerFreshness {
         Request request = new Request.Builder()
             .url(String.format("http://localhost:%s/metrics", port))
             .get().build();
-        LOG.info(client.newCall(request).execute().body().string());
+        try (Response response = client.newCall(request).execute()) {
+          LOG.info(response.body().string());
+        }
         return;
       }
 
