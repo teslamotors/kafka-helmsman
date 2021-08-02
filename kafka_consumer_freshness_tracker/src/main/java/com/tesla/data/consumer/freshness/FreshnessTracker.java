@@ -77,7 +77,7 @@ class FreshnessTracker implements Runnable {
   private Optional<Long> getOffsetIngestTime(long offset) {
     Collection<TopicPartition> tps = Collections.singletonList(from);
     try {
-      return metrics.kafkaQueryLatency.labels("offset").time(() -> {
+      return metrics.kafkaQueryLatency.labels(this.consumer.cluster, "offset").time(() -> {
         kafka.assign(tps);
         seekFrom(offset);
         ConsumerRecords records = this.kafka.poll(Duration.ofSeconds(2));
