@@ -81,7 +81,7 @@ public class FreshnessMetrics {
     kafkaQueryLatency = new Histogram.Builder()
         .name("kafka_consumer_freshness_runtime_kafka_query_time")
         .help("Time spent making the actual queries for kafka time")
-        .labelNames("type")
+        .labelNames("cluster", "type")
         .register();
     lastClusterRunAttempt = Gauge.build()
         .name("kafka_consumer_freshness_last_run_timestamp")
