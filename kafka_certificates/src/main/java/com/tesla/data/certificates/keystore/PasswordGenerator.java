@@ -15,7 +15,7 @@ public class PasswordGenerator {
   private static final int LOWERCASE_Z = 122;
   // a selection of special characters that should be nice to configurations
   private static final char[] SPECIAL_CHARS = new char[]{
-      '!', '#', '%', '&', '+', '-', '/', '\\', '(', ')', '*', '^', '=', '>', '<', ':', ';', ',', '.'
+      '!', '#', '%', '&', '+', '-', '(', ')', '*', '^', '=', '>', '<', ':', ';', ',', '.'
   };
 
   private final Random random;

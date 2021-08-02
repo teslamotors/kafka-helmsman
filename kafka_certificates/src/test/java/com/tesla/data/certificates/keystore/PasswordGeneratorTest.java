@@ -23,13 +23,13 @@ public class PasswordGeneratorTest {
     int len = 15;
     String pass = GENERATOR.generatePassword(len, 2, 2, 2, 2);
     assertEquals(len, pass.length());
-    assertContainsAll(pass, "J", "L", ".", ":");
+    assertContainsAll(pass, "J", "L", "+", "*");
 
     // do it again, but should be different b/c of randomness in some letters + scrambling
     PasswordGenerator gen = new PasswordGenerator(new Random(SEED));
     String pass2 = gen.generatePassword(len, 2, 2, 2, 2);
     assertEquals(len, pass2.length());
-    assertContainsAll(pass2, "J", "L", ".", ":");
+    assertContainsAll(pass2, "J", "L", "+", "*");
     assertNotEquals("Generated the same password twice", pass, pass2);
   }
 
