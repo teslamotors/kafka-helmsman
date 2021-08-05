@@ -20,6 +20,7 @@ public class FreshnessMetrics {
   final Counter error;
   final Counter burrowClustersConsumersReadFailed;
   final Counter burrowClustersReadFailed;
+  final Counter timestampType;
   final Gauge freshness;
   final Histogram kafkaQueryLatency;
   final Gauge lastClusterRunAttempt;
@@ -71,6 +72,11 @@ public class FreshnessMetrics {
     burrowClustersReadFailed = new Counter.Builder()
         .name("kafka_consumer_freshness_runtime_failed_burrow_clusters_read")
         .help("Number of times we failed to lookup the clusters from burrow")
+        .register();
+    timestampType = new Counter.Builder()
+        .name("kafka_consumer_freshness_runtime_timestamp_type")
+        .help("Counter to track kafka record timestamp type (CreateTime, LogAppendTime)")
+        .labelNames("cluster", "topic", "type")
         .register();
     freshness = new Gauge.Builder()
         .name("kafka_consumer_freshness_ms")

@@ -49,41 +49,42 @@ class FreshnessTracker implements Runnable {
     if (!this.consumer.upToDate) {
       // ask Kafka for the time the next offset
       long firstUncommittedOffset = consumer.offset + 1;
-      Optional<Long> entered = this.getOffsetIngestTime(firstUncommittedOffset);
+      Optional<ConsumerRecord> firstUncommittedRecord = this.getRecordAtOffset(firstUncommittedOffset);
       metrics.kafkaRead.labels(this.consumer.cluster, this.consumer.group).inc();
-      if (!entered.isPresent()) {
+      if (!firstUncommittedRecord.isPresent()) {
         // maybe the processor is very slow (or stream is high volume) and we lost the offset
         LOG.error("Failed to load offset for {} : {}", consumer, firstUncommittedOffset);
         metrics.failed.labels(this.consumer.cluster, this.consumer.group).inc();
         return;
       }
 
-      if (entered.get() < 0) {
+      final ConsumerRecord record = firstUncommittedRecord.get();
+      metrics.timestampType.labels(this.consumer.cluster, this.from.topic(), record.timestampType().name).inc();
+      if (record.timestamp() < 0) {
         // producer or broker is only supposed to record non-negative timestamps, however
         // a non-standard client or client on a very old version may produce records with
         // negative timestamps -- we ignore those.
-        LOG.info("Read invalid offset for {} : {}", consumer, entered.get());
+        LOG.info("Read invalid offset for {} : {}", consumer, record.timestamp());
         metrics.invalid.labels(this.consumer.cluster, this.consumer.group).inc();
         return;
       }
       Instant now = Instant.now(clock);
-      freshness = Math.max(now.toEpochMilli() - entered.get(), 0);
+      freshness = Math.max(now.toEpochMilli() - record.timestamp(), 0);
     }
     metrics.freshness.labels(this.consumer.cluster, this.consumer.group, this.from.topic(),
         Integer.toString(this.from.partition()))
         .set(freshness);
   }
 
-  private Optional<Long> getOffsetIngestTime(long offset) {
+  private Optional<ConsumerRecord> getRecordAtOffset(long offset) {
     Collection<TopicPartition> tps = Collections.singletonList(from);
     try {
       return metrics.kafkaQueryLatency.labels(this.consumer.cluster, "offset").time(() -> {
         kafka.assign(tps);
         seekFrom(offset);
         ConsumerRecords records = this.kafka.poll(Duration.ofSeconds(2));
-        return (Optional<Long>) Streams.<ConsumerRecord>stream(records)
-            .findFirst()
-            .map(record -> ((ConsumerRecord) record).timestamp());
+        return Streams.<ConsumerRecord>stream(records)
+            .findFirst();
       });
     } catch (Throwable t) {
       LOG.error("Failed to read {} from Kafka - maybe an SSL/connectivity error?", consumer, t);

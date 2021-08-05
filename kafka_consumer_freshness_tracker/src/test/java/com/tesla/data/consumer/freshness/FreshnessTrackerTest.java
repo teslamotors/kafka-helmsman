@@ -17,6 +17,7 @@ import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.common.TopicPartition;
+import org.apache.kafka.common.record.TimestampType;
 import org.junit.Test;
 import org.mockito.InOrder;
 
@@ -91,6 +92,7 @@ public class FreshnessTrackerTest {
 
     assertEquals("Should be behind the LEO timestamp", 1,
         metrics.freshness.labels("cluster", "group", "topic", "1").get(), 0);
+    assertEquals(1, metrics.timestampType.labels("cluster", "topic", "LogAppendTime").get(), 0);
     assertEquals(0, metrics.failed.labels("cluster", "group").get(), 0);
     TopicPartition tp = new TopicPartition("topic", 1);
     Collection<TopicPartition> tps = Collections.singletonList(tp);
@@ -163,6 +165,7 @@ public class FreshnessTrackerTest {
     for (long ts : timestamps) {
       ConsumerRecord record = mock(ConsumerRecord.class);
       when(record.timestamp()).thenReturn(ts);
+      when(record.timestampType()).thenReturn(TimestampType.LOG_APPEND_TIME);
       consumerRecords.add(record);
     }
     Map<TopicPartition, List<ConsumerRecord>> map = new HashMap<>();
