@@ -157,6 +157,14 @@ public abstract class Enforcer<T> {
     alterDrifted();
     if (!safemode) {
       deleteUnexpected();
+    } else {
+      List<T> toDelete = unexpected();
+      if (!toDelete.isEmpty()) {
+        LOG.info("Found {} redundant entities: {}", toDelete.size(), toDelete);
+        LOG.info("Unexpected entities were not removed because safemode is on.");
+      } else {
+        LOG.info("No un-expected entity was found.");
+      }
     }
     LOG.info("\n--Enforcement run ended--");
   }
