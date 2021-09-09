@@ -40,6 +40,14 @@ public class TopicEnforcer extends Enforcer<ConfiguredTopic> {
           .labelNames("type")
           .register();
 
+  private static final Gauge replicationFactorDrift =
+      Gauge.build()
+          .name("kafka_topic_enforcer_replication_factor_drift_topics")
+          .help("Count of topics which have drifted from their desired replication factor.")
+          .labelNames("type")
+          .register();
+
+
   public TopicEnforcer(
       TopicService topicService,
       List<ConfiguredTopic> configuredTopics,
@@ -169,5 +177,8 @@ public class TopicEnforcer extends Enforcer<ConfiguredTopic> {
     topicConfigDrift
         .labels("unsafe")
         .set(topicsWithConfigDrift(Type.TOPIC_CONFIG, Result.UNSAFE_DRIFT).size());
+    replicationFactorDrift
+	.labels("unsupported")
+	.set(topicsWithConfigDrift(Type.REPLICATION_FACTOR, Result.UNSUPPORTED_DRIFT).size());
   }
 }
