@@ -97,11 +97,21 @@ public class TopicEnforcer extends Enforcer<ConfiguredTopic> {
                 t -> {
                   Result result = configDrift.check(t, existing.get(t.getName()), type);
                   if (logResults && !Result.NO_DRIFT.equals(result)) {
-                    LOG.info(
-                        "Found {} for topic {}, in {} drift detection mode",
-                        result,
-                        t.getName(),
-                        type);
+		    String msgFmt = "Found {} for topic {}, in {} drift detection mode"; 
+		    if (result.equals(Result.SAFE_DRIFT)) {
+                      LOG.info(
+			  msgFmt,
+                          result,
+                          t.getName(),
+                          type);
+
+		    } else {
+		      LOG.warn(
+	                  msgFmt,
+			  result,
+			  t.getName(),
+			  type);
+		    }
                   }
                   return safetyFilters.contains(result);
                 })
