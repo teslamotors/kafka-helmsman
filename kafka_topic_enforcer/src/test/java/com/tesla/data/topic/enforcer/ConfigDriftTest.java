@@ -74,13 +74,13 @@ public class ConfigDriftTest {
   }
 
   @Test
-  public void testReplicatioFactorDrift() {
+  public void testReplicationFactorDrift() {
 	  ConfiguredTopic desired = new ConfiguredTopic("a", 10, (short) 2, Collections.emptyMap());
 	  Assert.assertEquals(UNSUPPORTED_DRIFT, drift.check(desired, actual, ConfigDrift.Type.REPLICATION_FACTOR));
   }
 
   @Test
-  public void testReplicatioFactorNoDrift() {
+  public void testReplicationFactorNoDrift() {
 	  ConfiguredTopic desired = new ConfiguredTopic("a", 10, (short) 1, Collections.emptyMap());
 	  Assert.assertEquals(NO_DRIFT, drift.check(desired, actual, ConfigDrift.Type.REPLICATION_FACTOR));
   }
