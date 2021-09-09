@@ -80,6 +80,12 @@ public class ConfigDriftTest {
   }
 
   @Test
+  public void testReplicatioFactorNoDrift() {
+	  ConfiguredTopic desired = new ConfiguredTopic("a", 10, (short) 1, Collections.emptyMap());
+	  Assert.assertEquals(NO_DRIFT, drift.check(desired, actual, ConfigDrift.Type.REPLICATION_FACTOR));
+  }
+
+  @Test
   public void testLowWaterMark() {
     ConfigDrift drift = new ConfigDrift(100, 200, 0.25f, Collections.emptySet());
     // 5x-ing the partition count but lower than low water mark, so it should be safe
