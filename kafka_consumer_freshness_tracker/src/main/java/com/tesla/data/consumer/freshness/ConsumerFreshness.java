@@ -129,6 +129,25 @@ public class ConsumerFreshness {
     this.executor = MoreExecutors.listeningDecorator(Executors.newFixedThreadPool(workerThreadCount));
   }
 
+  class ValidationResult {
+	  boolean valid;
+	  String reason;
+
+	  ValidationResult(boolean valid, String reason) {
+		  this.valid = valid;
+		  this.reason = reason;
+	  }
+  }
+
+  private ValidationResult validateClusterConf(Map<String, Object> clusterConf) {
+	  try {
+		  Map<String, Object> clusterDetail = this.burrow.getClusterDetail((String) clusterConf.get("name"));
+		  	
+	  } catch (IOException e) {
+		  return new ValidationResult(false, e.getMessage());
+	  }
+  }
+
   private KafkaConsumer createConsumer(Map<String, Object> conf) {
     Properties props = new Properties();
     props.put("key.deserializer", "org.apache.kafka.common.serialization.ByteArrayDeserializer");

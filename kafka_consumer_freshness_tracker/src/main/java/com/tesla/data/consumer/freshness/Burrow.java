@@ -116,6 +116,10 @@ class Burrow {
         .collect(Collectors.toList());
   }
 
+  public Map<String, Object> getClusterDetail(String cluster) throws IOException {
+	  return (Map<String, Object>) this.request(cluster).get("cluster");
+  }
+
   public class ClusterClient {
 
     private final String cluster;
@@ -134,6 +138,10 @@ class Burrow {
 
     public String getCluster() {
       return cluster;
+    }
+
+    public Map<String, Object> getClusterDetail() throws IOException {
+	return Burrow.this.getClusterDetail(this.cluster);
     }
   }
 }
