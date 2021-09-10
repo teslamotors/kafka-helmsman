@@ -114,7 +114,12 @@ public class ConsumerFreshness {
   }
 
   private void setup(Map<String, Object> conf) {
-    this.burrow = new Burrow((Map<String, Object>) conf.get("burrow"));
+    setupWithBurrow(conf, new Burrow((Map<String, Object>) conf.get("burrow")));
+  }
+
+  @VisibleForTesting
+  void setupWithBurrow(Map<String, Object> conf, Burrow burrow) {
+    this.burrow = burrow;
     int workerThreadCount = (int) conf.getOrDefault("workerThreadCount", DEFAULT_WORKER_THREADS);
     this.availableWorkers = ((List<Map<String, Object>>) conf.get("clusters")).stream().map(clusterConf -> {
       // validate the cluster configuration
@@ -383,6 +388,11 @@ public class ConsumerFreshness {
     if (this.availableWorkers != null) {
       this.availableWorkers.values().stream().flatMap(Collection::stream).forEach(KafkaConsumer::close);
     }
+  }
+
+  @VisibleForTesting
+  Map<String, ArrayBlockingQueue<KafkaConsumer>> getAvailableWorkersForTesting() {
+    return this.availableWorkers;
   }
 
   public FreshnessMetrics getMetricsForTesting() {
