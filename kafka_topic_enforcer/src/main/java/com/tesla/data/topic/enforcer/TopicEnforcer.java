@@ -35,7 +35,7 @@ public class TopicEnforcer extends Enforcer<ConfiguredTopic> {
 
   private static final Gauge replicationFactorDrift = Gauge.build()
       .name("kafka_topic_enforcer_replication_factor_drift_topics")
-      .help("Count of topics which have drifted from their desired replication factor.").labelNames("type").register();
+      .help("Count of topics which have drifted from their desired replication factor.").register();
 
   public TopicEnforcer(TopicService topicService, List<ConfiguredTopic> configuredTopics, ConfigDrift configDrift,
       boolean safemode) {
