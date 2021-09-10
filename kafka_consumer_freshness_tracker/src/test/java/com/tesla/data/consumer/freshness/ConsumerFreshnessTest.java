@@ -9,6 +9,7 @@ import static org.apache.kafka.clients.consumer.ConsumerRecord.NULL_CHECKSUM;
 import static org.apache.kafka.clients.consumer.ConsumerRecord.NULL_SIZE;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verifyZeroInteractions;
@@ -21,6 +22,7 @@ import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.common.TopicPartition;
+import org.apache.kafka.common.KafkaException;
 import org.apache.kafka.common.record.TimestampType;
 import org.junit.Rule;
 import org.junit.Test;
@@ -289,6 +291,105 @@ public class ConsumerFreshnessTest {
       FreshnessMetrics metrics = freshness.getMetricsForTesting();
       assertEquals("Should be a log for failed Burrow.getClusterDetail request", 1,
           metrics.burrowClusterDetailReadFailed.get(), 0.0);
+    });
+  }
+
+  @Test
+  public void testNormalModeConfigurationIsValidServersMatchBurrow() throws Exception {
+    Burrow burrow = mock(Burrow.class);
+    String clusterName = "cluster1";
+    when(burrow.getClusterDetail(clusterName)).thenReturn(Map.of("module", (Object) Map.of("servers",
+        (Object) List.of("kafka01.example.com:10251", "kafka02.example.com:10251", "kafka03.example.com:10251"))));
+
+    Map<String, Object> conf = Map.of("clusters",
+        (Object) List.of(Map.of("name", (Object) clusterName, "kafka", (Object) Map.of("bootstrap.servers",
+            (Object) "kafka01.example.com:10251, kafka02.example.com:10251, kafka03.example.com:10251"))));
+
+    withExecutor(executor -> {
+      ConsumerFreshness freshness = new ConsumerFreshness();
+
+      // This exception should be thrown when the consumers are attempted to be
+      // connected after validation succeeds
+      thrown.expect(KafkaException.class);
+      thrown.expectMessage("Failed to construct kafka consumer");
+
+      freshness.setupWithBurrow(conf, burrow);
+
+      freshness.run();
+
+      assertEquals("Should be a worker queue for valid cluster", 1, freshness.getAvailableWorkersForTesting().size(),
+          0.0);
+    });
+  }
+
+  @Test
+  public void testNormalModeConfigurationIsInvalidContainsUnknownServer() throws Exception {
+    Burrow burrow = mock(Burrow.class);
+    String clusterName = "cluster1";
+    when(burrow.getClusterDetail(clusterName)).thenReturn(Map.of("module", (Object) Map.of("servers",
+        (Object) List.of("kafka01.example.com:10251", "kafka02.example.com:10251", "kafka03.example.com:10251"))));
+
+    Map<String, Object> conf = Map.of("clusters",
+        (Object) List.of(Map.of("name", (Object) clusterName, "kafka", (Object) Map.of("bootstrap.servers",
+            (Object) "kafka01.example.com:10251, kafka02.example.com:10251, kafka03.example.com:10251, kafka04.example.com:10251"))));
+
+    withExecutor(executor -> {
+      ConsumerFreshness freshness = new ConsumerFreshness();
+      freshness.setupWithBurrow(conf, burrow);
+      freshness.run();
+
+      assertEquals("Should be no worker queue for invalid cluster", 0, freshness.getAvailableWorkersForTesting().size(),
+          0.0);
+    });
+  }
+
+  @Test
+  public void testStrictModeConfigurationIsValidServersMatchBurrow() throws Exception {
+    Burrow burrow = mock(Burrow.class);
+    String clusterName = "cluster1";
+    when(burrow.getClusterDetail(clusterName)).thenReturn(Map.of("module", (Object) Map.of("servers",
+        (Object) List.of("kafka01.example.com:10251", "kafka02.example.com:10251", "kafka03.example.com:10251"))));
+
+    Map<String, Object> conf = Map.of("clusters",
+        (Object) List.of(Map.of("name", (Object) clusterName, "kafka", (Object) Map.of("bootstrap.servers",
+            (Object) "kafka01.example.com:10251, kafka02.example.com:10251, kafka03.example.com:10251"))));
+
+    withExecutor(executor -> {
+      ConsumerFreshness freshness = new ConsumerFreshness(true);
+
+      // This exception should be thrown when the consumers are attempted to be
+      // connected after validation succeeds
+      thrown.expect(KafkaException.class);
+      thrown.expectMessage("Failed to construct kafka consumer");
+
+      freshness.setupWithBurrow(conf, burrow);
+
+      freshness.run();
+
+      assertEquals("Should be a worker queue for valid cluster", 1, freshness.getAvailableWorkersForTesting().size(),
+          0.0);
+    });
+  }
+
+  @Test
+  public void testStrictmodeConfigurationIsInvalidMissingServer() throws Exception {
+    Burrow burrow = mock(Burrow.class);
+    String clusterName = "cluster1";
+    when(burrow.getClusterDetail(clusterName))
+        .thenReturn(Map.of("module", (Object) Map.of("servers", (Object) List.of("kafka01.example.com:10251",
+            "kafka02.example.com:10251", "kafka03.example.com:10251", "kafka04.example.com:10251"))));
+
+    Map<String, Object> conf = Map.of("clusters",
+        (Object) List.of(Map.of("name", (Object) clusterName, "kafka", (Object) Map.of("bootstrap.servers",
+            (Object) "kafka01.example.com:10251, kafka02.example.com:10251, kafka03.example.com:10251"))));
+
+    withExecutor(executor -> {
+      ConsumerFreshness freshness = new ConsumerFreshness(true);
+      freshness.setupWithBurrow(conf, burrow);
+      freshness.run();
+
+      assertEquals("Should be no worker queue for invalid cluster", 0, freshness.getAvailableWorkersForTesting().size(),
+          0.0);
     });
   }
 
