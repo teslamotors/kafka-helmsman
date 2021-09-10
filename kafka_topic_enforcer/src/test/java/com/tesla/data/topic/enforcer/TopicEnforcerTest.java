@@ -68,7 +68,7 @@ public class TopicEnforcerTest {
     enforcer.increasePartitions();
 
     // topic 'b'
-    List<ConfiguredTopic> expected = Collections.singletonList(configured.get(1));
+    List<ConfiguredTopic> expected = Arrays.asList(configured.get(1), configured.get(2));
     verify(service).listExisting(true);
     verify(service).increasePartitions(expected);
     verifyNoMoreInteractions(service);
@@ -100,7 +100,7 @@ public class TopicEnforcerTest {
     enforcer.alterConfiguration();
 
     // topic 'a'
-    List<ConfiguredTopic> expected = Collections.singletonList(configured.get(0));
+    List<ConfiguredTopic> expected = Arrays.asList(configured.get(0), configured.get(3));
     verify(service).listExisting(true);
     verify(service).alterConfiguration(expected);
     verifyNoMoreInteractions(service);
