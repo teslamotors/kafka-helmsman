@@ -26,66 +26,85 @@ public class TopicEnforcer extends Enforcer<ConfiguredTopic> {
   private final Set<Result> configDriftSafetyFilters;
   private final TopicService topicService;
   // prometheus metrics should be static, see https://git.io/fj17x
-  private static final Gauge partitionCountDrift = Gauge.build()
-      .name("kafka_topic_enforcer_partition_count_drift_topics")
-      .help("Count of topics which have drifted from their desired partition count.").labelNames("type").register();
+  private static final Gauge partitionCountDrift =
+      Gauge.build()
+          .name("kafka_topic_enforcer_partition_count_drift_topics")
+          .help("Count of topics which have drifted from their desired partition count.")
+          .labelNames("type")
+          .register();
 
-  private static final Gauge topicConfigDrift = Gauge.build().name("kafka_topic_enforcer_topic_config_drift_topics")
-      .help("Count of topics which have drifted from their desired topic config.").labelNames("type").register();
+  private static final Gauge topicConfigDrift =
+      Gauge.build()
+          .name("kafka_topic_enforcer_topic_config_drift_topics")
+          .help("Count of topics which have drifted from their desired topic config.")
+          .labelNames("type")
+          .register();
 
-  private static final Gauge replicationFactorDrift = Gauge.build()
-      .name("kafka_topic_enforcer_replication_factor_drift_topics")
-      .help("Count of topics which have drifted from their desired replication factor.").register();
+  private static final Gauge replicationFactorDrift =
+      Gauge.build()
+          .name("kafka_topic_enforcer_replication_factor_drift_topics")
+          .help("Count of topics which have drifted from their desired replication factor.")
+          .register();
 
-  public TopicEnforcer(TopicService topicService, List<ConfiguredTopic> configuredTopics, ConfigDrift configDrift,
+  public TopicEnforcer(
+      TopicService topicService,
+      List<ConfiguredTopic> configuredTopics,
+      ConfigDrift configDrift,
       boolean safemode) {
-    super(configuredTopics, () -> topicService.listExisting(true).values(),
-        (t1, t2) -> t1.getName().equals(t2.getName()), safemode);
-    checkArgument(configuredTopics.stream().noneMatch(TopicService.INTERNAL_TOPIC), "Internal topics found in config");
+    super(
+        configuredTopics,
+        () -> topicService.listExisting(true).values(),
+        (t1, t2) -> t1.getName().equals(t2.getName()),
+        safemode);
+    checkArgument(
+        configuredTopics.stream().noneMatch(TopicService.INTERNAL_TOPIC),
+        "Internal topics found in config");
     this.topicService = topicService;
     this.configDrift = configDrift;
-    this.configDriftSafetyFilters = safemode ? EnumSet.of(Result.SAFE_DRIFT)
-        : EnumSet.of(Result.SAFE_DRIFT, Result.UNSAFE_DRIFT);
+    this.configDriftSafetyFilters =
+        safemode
+            ? EnumSet.of(Result.SAFE_DRIFT)
+            : EnumSet.of(Result.SAFE_DRIFT, Result.UNSAFE_DRIFT);
   }
 
-  public TopicEnforcer(TopicService topicService, List<ConfiguredTopic> configuredTopics, boolean safemode) {
+  public TopicEnforcer(
+      TopicService topicService, List<ConfiguredTopic> configuredTopics, boolean safemode) {
     this(topicService, configuredTopics, new ConfigDrift(), safemode);
   }
 
   /**
-   * Find topics whose actual configuration has drifted from expected
-   * configuration. The returned list will have topic represented in the
-   * 'configured' aka 'desired' form.
+   * Find topics whose actual configuration has drifted from expected configuration. The returned
+   * list will have topic represented in the 'configured' aka 'desired' form.
    *
-   * @param type
-   *          the mode in which to perform config drift check, see
-   *          {@link ConfigDrift.Type}
-   * @param safetyFilters
-   *          a set of filters to apply on result of drift check, see
-   *          {@link ConfigDrift.Result}
-   * @param logResults
-   *          if set to true, log config drift check results
+   * @param type the mode in which to perform config drift check, see {@link ConfigDrift.Type}
+   * @param safetyFilters a set of filters to apply on result of drift check, see {@link
+   *     ConfigDrift.Result}
+   * @param logResults if set to true, log config drift check results
    * @return a list containing topics whose config has drifted
    */
-  List<ConfiguredTopic> topicsWithConfigDrift(Type type, Set<Result> safetyFilters, boolean logResults) {
+  List<ConfiguredTopic> topicsWithConfigDrift(
+      Type type, Set<Result> safetyFilters, boolean logResults) {
     if (this.configured.isEmpty()) {
       return Collections.emptyList();
     }
     Map<String, ConfiguredTopic> existing = this.topicService.listExisting(true);
-    return Collections
-        .unmodifiableList(this.configured.stream().filter(t -> existing.containsKey(t.getName())).filter(t -> {
-          Result result = configDrift.check(t, existing.get(t.getName()), type);
-          if (logResults && !Result.NO_DRIFT.equals(result)) {
-            String msgFmt = "Found {} for topic {}, in {} drift detection mode";
-            if (result.equals(Result.SAFE_DRIFT)) {
-              LOG.info(msgFmt, result, t.getName(), type);
-
-            } else {
-              LOG.warn(msgFmt, result, t.getName(), type);
-            }
-          }
-          return safetyFilters.contains(result);
-        }).collect(Collectors.toList()));
+    return Collections.unmodifiableList(
+        this.configured.stream()
+            .filter(t -> existing.containsKey(t.getName()))
+            .filter(
+                t -> {
+                  Result result = configDrift.check(t, existing.get(t.getName()), type);
+                  if (logResults && !Result.NO_DRIFT.equals(result)) {
+                    String msgFmt = "Found {} for topic {}, in {} drift detection mode";
+                    if (result.equals(Result.SAFE_DRIFT)) {
+                      LOG.info(msgFmt, result, t.getName(), type);
+                    } else {
+                      LOG.warn(msgFmt, result, t.getName(), type);
+                    }
+                  }
+                  return safetyFilters.contains(result);
+                })
+            .collect(Collectors.toList()));
   }
 
   private List<ConfiguredTopic> topicsWithConfigDrift(Type type, Result safetyFilter) {
@@ -98,7 +117,8 @@ public class TopicEnforcer extends Enforcer<ConfiguredTopic> {
    * @return a list of topics for which partitions were increased
    */
   List<ConfiguredTopic> increasePartitions() {
-    List<ConfiguredTopic> toIncrease = topicsWithConfigDrift(Type.PARTITION_COUNT, configDriftSafetyFilters, true);
+    List<ConfiguredTopic> toIncrease =
+        topicsWithConfigDrift(Type.PARTITION_COUNT, configDriftSafetyFilters, true);
     if (!toIncrease.isEmpty()) {
       LOG.info("Increasing partitions for {} topics: {}", toIncrease.size(), toIncrease);
       topicService.increasePartitions(toIncrease);
@@ -113,8 +133,9 @@ public class TopicEnforcer extends Enforcer<ConfiguredTopic> {
    *
    * @return a list of topics which were altered
    */
-  List<ConfiguredTopic> alterConfiguration() {
-    List<ConfiguredTopic> toAlter = topicsWithConfigDrift(Type.TOPIC_CONFIG, configDriftSafetyFilters, true);
+   List<ConfiguredTopic> alterConfiguration() {
+    List<ConfiguredTopic> toAlter =
+        topicsWithConfigDrift(Type.TOPIC_CONFIG, configDriftSafetyFilters, true);
     if (!toAlter.isEmpty()) {
       LOG.info("Altering topic configuration for {} topics: {}", toAlter.size(), toAlter);
       topicService.alterConfiguration(toAlter);
@@ -143,11 +164,20 @@ public class TopicEnforcer extends Enforcer<ConfiguredTopic> {
   @Override
   public void stats() {
     super.stats();
-    partitionCountDrift.labels("safe").set(topicsWithConfigDrift(Type.PARTITION_COUNT, Result.SAFE_DRIFT).size());
-    partitionCountDrift.labels("unsafe").set(topicsWithConfigDrift(Type.PARTITION_COUNT, Result.UNSAFE_DRIFT).size());
-    topicConfigDrift.labels("safe").set(topicsWithConfigDrift(Type.TOPIC_CONFIG, Result.SAFE_DRIFT).size());
-    topicConfigDrift.labels("unsafe").set(topicsWithConfigDrift(Type.TOPIC_CONFIG, Result.UNSAFE_DRIFT).size());
-    replicationFactorDrift.labels("unsupported")
+    partitionCountDrift
+        .labels("safe")
+        .set(topicsWithConfigDrift(Type.PARTITION_COUNT, Result.SAFE_DRIFT).size());
+    partitionCountDrift
+        .labels("unsafe")
+        .set(topicsWithConfigDrift(Type.PARTITION_COUNT, Result.UNSAFE_DRIFT).size());
+    topicConfigDrift
+        .labels("safe")
+        .set(topicsWithConfigDrift(Type.TOPIC_CONFIG, Result.SAFE_DRIFT).size());
+    topicConfigDrift
+        .labels("unsafe")
+        .set(topicsWithConfigDrift(Type.TOPIC_CONFIG, Result.UNSAFE_DRIFT).size());
+    replicationFactorDrift
+        .labels("unsupported")
         .set(topicsWithConfigDrift(Type.REPLICATION_FACTOR, Result.UNSUPPORTED_DRIFT).size());
   }
 

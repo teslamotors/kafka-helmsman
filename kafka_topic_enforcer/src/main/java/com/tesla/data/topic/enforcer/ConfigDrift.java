@@ -15,30 +15,27 @@ import java.util.Set;
  */
 public class ConfigDrift {
 
-  // permissible % increase threshold doesnt apply if the increased amount is
-  // below low water mark
+  // permissible % increase threshold doesnt apply if the increased amount is below low water mark
   private final int partitionCountLowWaterMark;
-  // an increase above the high water mark is considered un-safe even if its below
-  // the permissible % increase threshold
+  // an increase above the high water mark is considered un-safe even if its below the permissible % increase threshold
   private final int partitionCountHighWaterMark;
   // permissible % increase in partition count, value between (0, 1]
   private final float partitionIncreaseThreshold;
   // a set of properties which are considered unsafe
   private final Set<String> unsafeConfigProperties;
 
-  public ConfigDrift(int partitionCountLowWaterMark, int partitionCountHighWaterMark, float partitionIncreaseThreshold,
-      Set<String> unsafeConfigProperties) {
+  public ConfigDrift(int partitionCountLowWaterMark, int partitionCountHighWaterMark,
+                     float partitionIncreaseThreshold, Set<String> unsafeConfigProperties) {
     checkArgument(partitionIncreaseThreshold > 0 && partitionIncreaseThreshold <= 1);
     checkArgument(partitionCountLowWaterMark > 0 && partitionCountHighWaterMark > 0);
     this.partitionCountLowWaterMark = partitionCountLowWaterMark;
     this.partitionCountHighWaterMark = partitionCountHighWaterMark;
     this.partitionIncreaseThreshold = partitionIncreaseThreshold;
-    this.unsafeConfigProperties = checkNotNull(unsafeConfigProperties);
-    ;
+    this.unsafeConfigProperties = checkNotNull(unsafeConfigProperties);;
   }
 
   public ConfigDrift() {
-    this(50, 1000, 0.25f, Collections.emptySet());
+    this(50, 1000 ,0.25f, Collections.emptySet());
   }
 
   enum Type {
@@ -68,12 +65,9 @@ public class ConfigDrift {
   /**
    * Check if there is a config drift between two topic configuration states.
    *
-   * @param desired
-   *          the desired {@link ConfiguredTopic}
-   * @param actual
-   *          an actual {@link ConfiguredTopic}
-   * @param type
-   *          the checking mode, see {@link Type}
+   * @param desired the desired {@link ConfiguredTopic}
+   * @param actual an actual {@link ConfiguredTopic}
+   * @param type the checking mode, see {@link Type}
    * @return a result indicating drift along with a sense of safety
    */
   public Result check(ConfiguredTopic desired, ConfiguredTopic actual, Type type) {
@@ -93,7 +87,7 @@ public class ConfigDrift {
             return Result.UNSAFE_DRIFT;
           }
           float increase = (desired.getPartitions() - actual.getPartitions()) * 1.0f / actual.getPartitions();
-          return increase <= partitionIncreaseThreshold ? Result.SAFE_DRIFT : Result.UNSAFE_DRIFT;
+          return increase <= partitionIncreaseThreshold ? Result.SAFE_DRIFT :  Result.UNSAFE_DRIFT;
         }
 
       case TOPIC_CONFIG:

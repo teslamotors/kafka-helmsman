@@ -59,7 +59,7 @@ public class TopicEnforcerTest {
         // cluster topic has less partitions than configured and less replicas, we care (about the partitions)!
         put("c", new ConfiguredTopic("c", 1, (short) 1, Collections.emptyMap()));
         // cluster has an extra topic that is not configured to be present, we do not care!
-        put("e", new ConfiguredTopic("b", 1, (short) 1, Collections.emptyMap()));
+        put("d", new ConfiguredTopic("b", 1, (short) 1, Collections.emptyMap()));
       }
     };
 
