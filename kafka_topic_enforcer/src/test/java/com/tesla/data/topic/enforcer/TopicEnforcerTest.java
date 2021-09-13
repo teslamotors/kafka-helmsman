@@ -67,7 +67,7 @@ public class TopicEnforcerTest {
     TopicEnforcer enforcer = new TopicEnforcer(service, configured, true);
     enforcer.increasePartitions();
 
-    // topic 'b'
+    // topic 'b' and 'c' should be subject to config alteration
     List<ConfiguredTopic> expected = Arrays.asList(configured.get(1), configured.get(2));
     verify(service).listExisting(true);
     verify(service).increasePartitions(expected);
@@ -99,7 +99,7 @@ public class TopicEnforcerTest {
     TopicEnforcer enforcer = new TopicEnforcer(service, configured, true);
     enforcer.alterConfiguration();
 
-    // topic 'a'
+    // topic 'a' and 'd' should be subject to config alteration
     List<ConfiguredTopic> expected = Arrays.asList(configured.get(0), configured.get(3));
     verify(service).listExisting(true);
     verify(service).alterConfiguration(expected);
