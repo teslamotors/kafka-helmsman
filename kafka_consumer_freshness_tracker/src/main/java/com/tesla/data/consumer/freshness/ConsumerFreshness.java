@@ -77,7 +77,9 @@ public class ConsumerFreshness {
 
   public static void main(String[] args) throws IOException, InterruptedException {
     ConsumerFreshness freshness = new ConsumerFreshness();
-    JCommander command = JCommander.newBuilder().addObject(freshness).build();
+    JCommander command = JCommander.newBuilder()
+        .addObject(freshness)
+        .build();
     command.parse(args);
     if (freshness.help) {
       command.usage();
@@ -100,7 +102,9 @@ public class ConsumerFreshness {
       if (freshness.once) {
         freshness.run();
         OkHttpClient client = new OkHttpClient();
-        Request request = new Request.Builder().url(String.format("http://localhost:%s/metrics", port)).get().build();
+        Request request = new Request.Builder()
+            .url(String.format("http://localhost:%s/metrics", port))
+            .get().build();
         try (Response response = client.newCall(request).execute()) {
           LOG.info(response.body().string());
         }
@@ -129,21 +133,23 @@ public class ConsumerFreshness {
   void setupWithBurrow(Map<String, Object> conf, Burrow burrow) {
     this.burrow = burrow;
     int workerThreadCount = (int) conf.getOrDefault("workerThreadCount", DEFAULT_WORKER_THREADS);
-    this.availableWorkers = ((List<Map<String, Object>>) conf.get("clusters")).stream().map(clusterConf -> {
-      // validate the cluster configuration
-      ValidationResult result = validateClusterConf(clusterConf);
-      if (!result.valid) {
-        LOG.error("configuration for cluster " + (String) clusterConf.get("name") + " is invalid", result.reason);
-        return null;
-      }
-      // allow each cluster to override the number of workers, if desired
-      int numConsumers = (int) clusterConf.getOrDefault("numConsumers", DEFAULT_KAFKA_CONSUMER_COUNT);
-      ArrayBlockingQueue<KafkaConsumer> queue = new ArrayBlockingQueue<>(numConsumers);
-      for (int i = 0; i < numConsumers; i++) {
-        queue.add(createConsumer(clusterConf));
-      }
-      return new AbstractMap.SimpleEntry<>((String) clusterConf.get("name"), queue);
-    }).filter(cluster -> cluster != null)
+    this.availableWorkers = ((List<Map<String, Object>>) conf.get("clusters")).stream()
+        .map(clusterConf -> {
+          // validate the cluster configuration
+          ValidationResult result = validateClusterConf(clusterConf);
+          if (!result.valid) {
+            LOG.error("configuration for cluster " + (String) clusterConf.get("name") + " is invalid", result.reason);
+            return null;
+          }
+          // allow each cluster to override the number of workers, if desired
+          int numConsumers = (int) clusterConf.getOrDefault("numConsumers", DEFAULT_KAFKA_CONSUMER_COUNT);
+          ArrayBlockingQueue<KafkaConsumer> queue = new ArrayBlockingQueue<>(numConsumers);
+          for (int i = 0; i < numConsumers; i++) {
+            queue.add(createConsumer(clusterConf));
+          }
+          return new AbstractMap.SimpleEntry<>((String) clusterConf.get("name"), queue);
+        })
+        .filter(cluster -> cluster != null)
         .collect(Collectors.toMap(AbstractMap.SimpleEntry::getKey, AbstractMap.SimpleEntry::getValue));
 
     this.executor = MoreExecutors.listeningDecorator(Executors.newFixedThreadPool(workerThreadCount));
@@ -229,8 +235,10 @@ public class ConsumerFreshness {
               LOG.info("Skipping cluster '{}' because not configured to connect", client.getCluster());
             }
             return workers != null;
-          }).peek(clusterClient -> metrics.lastClusterRunAttempt.labels(clusterClient.getCluster()).setToCurrentTime())
-          .map(this::measureCluster).forEach(future -> {
+          })
+          .peek(clusterClient -> metrics.lastClusterRunAttempt.labels(clusterClient.getCluster()).setToCurrentTime())
+          .map(this::measureCluster)
+          .forEach(future -> {
             try {
               String cluster = future.get();
               metrics.lastClusterRunSuccessfulAttempt.labels(cluster).setToCurrentTime();
@@ -238,8 +246,7 @@ public class ConsumerFreshness {
               LOG.error("Failed to measure a cluster", e);
             }
           });
-      // have to return something, we are a callable (so we can throw exceptions more
-      // easily)
+      // have to return something, we are a callable (so we can throw exceptions more easily)
       return null;
     });
   }
@@ -247,13 +254,9 @@ public class ConsumerFreshness {
   /**
    * Measure the freshness for all consumers in the cluster.
    *
-   * @return future containing the cluster name, representing the successful
-   *         completion of the freshness computation. {@link Future#get()} will
-   *         throw an exception if the freshness could not be measured for the
-   *         cluster.
-   * @throws RuntimeException
-   *           if there is a systemic problem that should shutdown the
-   *           application.
+   * @return future containing the cluster name, representing the successful completion of the freshness computation.
+   * {@link Future#get()} will throw an exception if the freshness could not be measured for the cluster.
+   * @throws RuntimeException if there is a systemic problem that should shutdown the application.
    */
   private ListenableFuture<String> measureCluster(Burrow.ClusterClient client) {
     List<ListenableFuture<List<Object>>> completedConsumers = new ArrayList<>();
@@ -282,42 +285,34 @@ public class ConsumerFreshness {
     }
 
     // if all the consumer measurements succeed, then we return the cluster name
-    // otherwise, Future.get will throw an exception representing the failure to
-    // measure a consumer (and thus the
+    // otherwise, Future.get will throw an exception representing the failure to measure a consumer (and thus the
     // failure to successfully monitor the cluster).
     return Futures.whenAllSucceed(completedConsumers).call(client::getCluster, this.executor);
   }
 
   /**
-   * Measure the freshness for all the topic/partitions currently consumed by the
-   * given consumer group. To maintain the existing contract, a consumer
-   * measurement fails ({@link Future#get()} throws an exception) only if: -
-   * burrow group status lookup fails - execution is interrupted Failure to
-   * actually measure the consumer is swallowed into a log message & metric
-   * update; obviously, this is less than ideal for many cases, but it will be
-   * addressed later.
+   * Measure the freshness for all the topic/partitions currently consumed by the given consumer group. To maintain
+   * the existing contract, a consumer measurement fails ({@link Future#get()} throws an exception) only if:
+   *  - burrow group status lookup fails
+   *  - execution is interrupted
+   * Failure to actually measure the consumer is swallowed into a log message & metric update; obviously, this is less
+   * than ideal for many cases, but it will be addressed later.
    *
-   * @param burrow
-   *          access to burrow
-   * @param workers
-   *          pool of workers available for querying Kafka
-   * @param consumerGroup
-   *          name of the consumer group to measure
-   * @return a future representing the measurement of each topic-partition the
-   *         consumer reads. If any partition failed to be measured the entire
-   *         future (i.e. calls to {@link Future#get()}) will be considered a
-   *         failure.
-   * @throws InterruptedException
-   *           if the application is interrupted while waiting for an available
-   *           worker
+   * @param burrow access to burrow
+   * @param workers pool of workers available for querying Kafka
+   * @param consumerGroup name of the consumer group to measure
+   * @return a future representing the measurement of each topic-partition the consumer reads. If any partition
+   * failed to be measured the entire future (i.e. calls to {@link Future#get()}) will be considered a failure.
+   * @throws InterruptedException if the application is interrupted while waiting for an available worker
    */
   private ListenableFuture<List<Object>> measureConsumer(Burrow.ClusterClient burrow,
-      ArrayBlockingQueue<KafkaConsumer> workers, String consumerGroup) throws InterruptedException {
+                                                         ArrayBlockingQueue<KafkaConsumer> workers,
+                                                         String consumerGroup) throws InterruptedException {
     Map<String, Object> status;
     try {
       status = burrow.getConsumerGroupStatus(consumerGroup);
-      Preconditions.checkState(status.get("partitions") != null, "Burrow response is missing partitions, got {}",
-          status);
+      Preconditions.checkState(status.get("partitions") != null,
+          "Burrow response is missing partitions, got {}", status);
     } catch (IOException | IllegalStateException e) {
       // this happens sometimes, when burrow is acting up (e.g. "bad" consumer names)
       LOG.error("Failed to read Burrow status for consumer {}. Skipping", consumerGroup, e);
@@ -333,16 +328,17 @@ public class ConsumerFreshness {
       int partition = (int) state.get("partition");
       Map<String, Object> end = (Map<String, Object>) state.get("end");
       if (end == null) {
-        LOG.debug("Skipping {}:{} - {}:{} because no offset found", burrow.getCluster(), consumerGroup, topic,
-            partition);
+        LOG.debug("Skipping {}:{} - {}:{} because no offset found",
+            burrow.getCluster(), consumerGroup, topic, partition);
         this.metrics.missing.inc();
         continue;
       }
       anyEndOffsetFound = true;
       long offset = Long.parseLong(end.get("offset").toString());
       boolean upToDate = Long.parseLong(state.get("current_lag").toString()) == 0;
-      FreshnessTracker.ConsumerOffset consumerState = new FreshnessTracker.ConsumerOffset(burrow.getCluster(),
-          consumerGroup, topic, partition, offset, upToDate);
+      FreshnessTracker.ConsumerOffset consumerState =
+          new FreshnessTracker.ConsumerOffset(burrow.getCluster(), consumerGroup, topic, partition, offset,
+              upToDate);
 
       // wait for a consumer to become available
       KafkaConsumer consumer = workers.take();
@@ -363,27 +359,27 @@ public class ConsumerFreshness {
       partitionFreshnessComputation.add(result);
     }
 
-    // only log if no end-offset found for any partition, it reduces the verbosity
-    // by pointing out full consumer
+    // only log if no end-offset found for any partition, it reduces the verbosity by pointing out full consumer
     // groups that are in weird state.
     if (!partitions.isEmpty() && !anyEndOffsetFound) {
-      LOG.warn("Skipping {}: {} because no end-offsets found for any of the {} topic/partitions", burrow.getCluster(),
-          consumerGroup, partitions.size());
+      LOG.warn("Skipping {}: {} because no end-offsets found for any of the {} topic/partitions",
+          burrow.getCluster(), consumerGroup, partitions.size());
     }
 
-    // these can all fail and NOT mark the cluster as a failure, so we map it into a
-    // "success"
+    // these can all fail and NOT mark the cluster as a failure, so we map it into a "success"
     return Futures.whenAllComplete(partitionFreshnessComputation).call(() -> {
-      // skip over any future that failed: this consumer is "successful" regardless of
-      // each partition's success/failure
-      return partitionFreshnessComputation.stream().map(partition -> {
-        try {
-          return partition.get();
-        } catch (Exception e) {
-          // skip it!
-          return null;
-        }
-      }).filter(Objects::isNull).collect(Collectors.toList());
+      // skip over any future that failed: this consumer is "successful" regardless of each partition's success/failure
+      return partitionFreshnessComputation.stream()
+          .map(partition -> {
+            try {
+              return partition.get();
+            } catch (Exception e) {
+              // skip it!
+              return null;
+            }
+          })
+          .filter(Objects::isNull)
+          .collect(Collectors.toList());
     }, this.executor);
   }
 
@@ -394,7 +390,9 @@ public class ConsumerFreshness {
     }
     // stop all the kafka consumers
     if (this.availableWorkers != null) {
-      this.availableWorkers.values().stream().flatMap(Collection::stream).forEach(KafkaConsumer::close);
+      this.availableWorkers.values().stream()
+          .flatMap(Collection::stream)
+          .forEach(KafkaConsumer::close);
     }
   }
 
