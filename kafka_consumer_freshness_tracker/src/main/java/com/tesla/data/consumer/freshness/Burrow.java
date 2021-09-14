@@ -117,7 +117,8 @@ class Burrow {
   }
 
   public Map<String, Object> getClusterDetail(String cluster) throws IOException {
-	  return (Map<String, Object>)((Map<String, Object>) this.request(cluster).get("cluster")).get("cluster");
+    Map<String, Object> response = (Map<String, Object>) this.request(cluster).get("cluster");
+	  return (Map<String, Object>) response.get("cluster");
   }
 
   public class ClusterClient {
