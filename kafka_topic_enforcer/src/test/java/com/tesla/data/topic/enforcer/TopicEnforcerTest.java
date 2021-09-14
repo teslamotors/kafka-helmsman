@@ -48,7 +48,7 @@ public class TopicEnforcerTest {
         new ConfiguredTopic("a", 1, (short) 3, Collections.emptyMap()),
         // topic 'b' wants to increase partition count to 3
         new ConfiguredTopic("b", 3, (short) 1, Collections.emptyMap()),
-        new ConfiguredTopic("c", 1, (short) 1, Collections.emptyMap()));
+        new ConfiguredTopic("c", 3, (short) 3, Collections.emptyMap()));
 
     Map<String, ConfiguredTopic> existing = new HashMap<String, ConfiguredTopic>() {
       {
@@ -56,6 +56,8 @@ public class TopicEnforcerTest {
         put("a", new ConfiguredTopic("a", 1, (short) 1, Collections.emptyMap()));
         // cluster topic has less partitions than configured, we care!
         put("b", new ConfiguredTopic("b", 1, (short) 1, Collections.emptyMap()));
+        // cluster topic has less partitions than configured and less replicas, we care (about the partitions)!
+        put("c", new ConfiguredTopic("c", 1, (short) 1, Collections.emptyMap()));
         // cluster has an extra topic that is not configured to be present, we do not care!
         put("d", new ConfiguredTopic("b", 1, (short) 1, Collections.emptyMap()));
       }
@@ -65,8 +67,8 @@ public class TopicEnforcerTest {
     TopicEnforcer enforcer = new TopicEnforcer(service, configured, true);
     enforcer.increasePartitions();
 
-    // topic 'b'
-    List<ConfiguredTopic> expected = Collections.singletonList(configured.get(1));
+    // topic 'b' and 'c' should be subject to config alteration
+    List<ConfiguredTopic> expected = Arrays.asList(configured.get(1), configured.get(2));
     verify(service).listExisting(true);
     verify(service).increasePartitions(expected);
     verifyNoMoreInteractions(service);
@@ -78,7 +80,8 @@ public class TopicEnforcerTest {
         // topic 'a' wants to remove all config overrides
         new ConfiguredTopic("a", 1, (short) 1, Collections.emptyMap()),
         new ConfiguredTopic("b", 1, (short) 1, Collections.emptyMap()),
-        new ConfiguredTopic("c", 1, (short) 1, Collections.emptyMap()));
+        new ConfiguredTopic("c", 1, (short) 1, Collections.emptyMap()),
+        new ConfiguredTopic("d", 1, (short) 3, Collections.emptyMap()));
 
     Map<String, ConfiguredTopic> existing = new HashMap<String, ConfiguredTopic>() {
       {
@@ -87,6 +90,8 @@ public class TopicEnforcerTest {
         // no change in topic config, partition count should be ignored
         put("b", new ConfiguredTopic("b", 3, (short) 1, Collections.emptyMap()));
         // topic 'c' is no present in the cluster
+        // cluster topic has some config overrides and less replicas, we care (about the config overrides)
+        put("d", new ConfiguredTopic("d", 1, (short) 1, Collections.singletonMap("k", "v")));
       }
     };
 
@@ -94,8 +99,8 @@ public class TopicEnforcerTest {
     TopicEnforcer enforcer = new TopicEnforcer(service, configured, true);
     enforcer.alterConfiguration();
 
-    // topic 'a'
-    List<ConfiguredTopic> expected = Collections.singletonList(configured.get(0));
+    // topic 'a' and 'd' should be subject to config alteration
+    List<ConfiguredTopic> expected = Arrays.asList(configured.get(0), configured.get(3));
     verify(service).listExisting(true);
     verify(service).alterConfiguration(expected);
     verifyNoMoreInteractions(service);

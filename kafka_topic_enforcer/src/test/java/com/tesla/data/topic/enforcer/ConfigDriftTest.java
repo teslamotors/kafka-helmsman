@@ -8,6 +8,7 @@ import static com.tesla.data.topic.enforcer.ConfigDrift.Result.NO_DRIFT;
 import static com.tesla.data.topic.enforcer.ConfigDrift.Result.SAFETY_UNKNOWN_DRIFT;
 import static com.tesla.data.topic.enforcer.ConfigDrift.Result.SAFE_DRIFT;
 import static com.tesla.data.topic.enforcer.ConfigDrift.Result.UNSAFE_DRIFT;
+import static com.tesla.data.topic.enforcer.ConfigDrift.Result.UNSUPPORTED_DRIFT;
 
 import org.junit.Assert;
 import org.junit.Test;
@@ -70,6 +71,18 @@ public class ConfigDriftTest {
     ConfigDrift drift = new ConfigDrift(10, 20, 0.25f, Collections.singleton("k"));
     ConfiguredTopic desired = new ConfiguredTopic("a", 10, (short) 1, Collections.singletonMap("k", "v"));
     Assert.assertEquals(UNSAFE_DRIFT, drift.check(desired, actual, ConfigDrift.Type.TOPIC_CONFIG));
+  }
+
+  @Test
+  public void testReplicationFactorDrift() {
+    ConfiguredTopic desired = new ConfiguredTopic("a", 10, (short) 2, Collections.emptyMap());
+    Assert.assertEquals(UNSUPPORTED_DRIFT, drift.check(desired, actual, ConfigDrift.Type.REPLICATION_FACTOR));
+  }
+
+  @Test
+  public void testReplicationFactorNoDrift() {
+    ConfiguredTopic desired = new ConfiguredTopic("a", 10, (short) 1, Collections.emptyMap());
+    Assert.assertEquals(NO_DRIFT, drift.check(desired, actual, ConfigDrift.Type.REPLICATION_FACTOR));
   }
 
   @Test

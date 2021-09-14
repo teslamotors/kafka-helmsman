@@ -44,7 +44,9 @@ public class ConfigDrift {
     // Check drift based on partition count alone
     PARTITION_COUNT,
     // Check drift based on topic properties alone
-    TOPIC_CONFIG
+    TOPIC_CONFIG,
+    // Check drift based on replication factor alone
+    REPLICATION_FACTOR
   }
 
   enum Result {
@@ -55,7 +57,9 @@ public class ConfigDrift {
     // Changes detected and were found to be un-safe
     UNSAFE_DRIFT,
     // Changes detected, but it wasn't clear if they are safe or not
-    SAFETY_UNKNOWN_DRIFT
+    SAFETY_UNKNOWN_DRIFT,
+    // Changes detected but enforcement for them is unsupported
+    UNSUPPORTED_DRIFT
   }
 
   /**
@@ -96,6 +100,10 @@ public class ConfigDrift {
             return Result.UNSAFE_DRIFT;
           }
         }
+
+      case REPLICATION_FACTOR:
+        return desired.getReplicationFactor() == actual.getReplicationFactor() ? Result.NO_DRIFT
+            : Result.UNSUPPORTED_DRIFT;
 
       default:
         throw new IllegalStateException("Unknown config drift!");

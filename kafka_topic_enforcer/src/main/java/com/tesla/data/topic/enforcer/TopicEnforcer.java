@@ -40,6 +40,12 @@ public class TopicEnforcer extends Enforcer<ConfiguredTopic> {
           .labelNames("type")
           .register();
 
+  private static final Gauge replicationFactorDrift =
+      Gauge.build()
+          .name("kafka_topic_enforcer_replication_factor_drift_topics")
+          .help("Count of topics which have drifted from their desired replication factor.")
+          .register();
+
   public TopicEnforcer(
       TopicService topicService,
       List<ConfiguredTopic> configuredTopics,
@@ -88,12 +94,19 @@ public class TopicEnforcer extends Enforcer<ConfiguredTopic> {
             .filter(
                 t -> {
                   Result result = configDrift.check(t, existing.get(t.getName()), type);
-                  if (logResults && !Result.NO_DRIFT.equals(result)) {
-                    LOG.info(
-                        "Found {} for topic {}, in {} drift detection mode",
-                        result,
-                        t.getName(),
-                        type);
+                  if (logResults) {
+                    String msgFmt = "Found {} for topic {}, in {} drift detection mode";
+                    switch(result) {
+                      case NO_DRIFT:
+                        break;
+                      case SAFE_DRIFT:
+                        LOG.info(msgFmt, result, t.getName(), type);
+                        break;
+                      case UNSAFE_DRIFT:
+                      case UNSUPPORTED_DRIFT:
+                        LOG.warn(msgFmt, result, t.getName(), type);
+                        break;
+                    }
                   }
                   return safetyFilters.contains(result);
                 })
@@ -169,5 +182,9 @@ public class TopicEnforcer extends Enforcer<ConfiguredTopic> {
     topicConfigDrift
         .labels("unsafe")
         .set(topicsWithConfigDrift(Type.TOPIC_CONFIG, Result.UNSAFE_DRIFT).size());
+    replicationFactorDrift
+        .labels("unsupported")
+        .set(topicsWithConfigDrift(Type.REPLICATION_FACTOR, Result.UNSUPPORTED_DRIFT).size());
   }
+
 }
