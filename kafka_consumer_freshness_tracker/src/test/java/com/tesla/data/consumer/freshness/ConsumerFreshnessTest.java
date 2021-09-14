@@ -42,6 +42,8 @@ import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.function.Consumer;
+import java.util.Arrays;
+import java.util.LinkedList;
 
 /**
  * Validate that we compute freshness and handle errors as expected. Specifically, for errors, we do the following:
@@ -280,9 +282,7 @@ public class ConsumerFreshnessTest {
     Burrow burrow = mock(Burrow.class);
     String clusterName = "bad_cluster";
     when(burrow.getClusterDetail(clusterName)).thenThrow(new IOException());
-    Map<String, Object> conf = Map.of("clusters",
-        (Object) List.of(Map.of("name", (Object) clusterName, "kafka", (Object) Map.of("bootstrap.servers",
-            (Object) "l1.example.com:9092, l2.example.com:9092, l3.example.com:9092"))));
+    Map<String, Object> conf = mockConfForCluster(clusterName, "l1.example.com:9092, l2.example.com:9092, l3.example.com:9092");
 
     withExecutor(executor -> {
       ConsumerFreshness freshness = new ConsumerFreshness();
@@ -297,16 +297,21 @@ public class ConsumerFreshnessTest {
     });
   }
 
+
   @Test
   public void testNormalModeConfigurationIsValidServersMatchBurrow() throws Exception {
     Burrow burrow = mock(Burrow.class);
     String clusterName = "cluster1";
-    when(burrow.getClusterDetail(clusterName)).thenReturn(Map.of("module", (Object) Map.of("servers",
-        (Object) List.of("kafka01.example.com:10251", "kafka02.example.com:10251", "kafka03.example.com:10251"))));
+    when(burrow.getClusterDetail(clusterName))
+      .thenReturn(mockBurrowClusterDetailResponse(
+            Arrays.asList("kafka01.example.com:10251", "kafka02.example.com:10251", "kafka03.example.com:10251")
+            )
+          );
 
-    Map<String, Object> conf = Map.of("clusters",
-        (Object) List.of(Map.of("name", (Object) clusterName, "kafka", (Object) Map.of("bootstrap.servers",
-            (Object) "kafka01.example.com:10251, kafka02.example.com:10251, kafka03.example.com:10251"))));
+    Map<String, Object> conf = mockConfForCluster(
+        clusterName,
+        "kafka01.example.com:10251, kafka02.example.com:10251, kafka03.example.com:10251"
+        );
 
     withExecutor(executor -> {
       ConsumerFreshness freshness = new ConsumerFreshness();
@@ -327,12 +332,16 @@ public class ConsumerFreshnessTest {
   public void testNormalModeConfigurationIsInvalidContainsUnknownServer() throws Exception {
     Burrow burrow = mock(Burrow.class);
     String clusterName = "cluster1";
-    when(burrow.getClusterDetail(clusterName)).thenReturn(Map.of("module", (Object) Map.of("servers",
-        (Object) List.of("kafka01.example.com:10251", "kafka02.example.com:10251", "kafka03.example.com:10251"))));
+    when(burrow.getClusterDetail(clusterName))
+      .thenReturn(mockBurrowClusterDetailResponse(
+            Arrays.asList("kafka01.example.com:10251", "kafka02.example.com:10251", "kafka03.example.com:10251")
+            )
+          );
 
-    Map<String, Object> conf = Map.of("clusters",
-        (Object) List.of(Map.of("name", (Object) clusterName, "kafka", (Object) Map.of("bootstrap.servers",
-            (Object) "kafka01.example.com:10251, kafka02.example.com:10251, kafka03.example.com:10251, kafka04.example.com:10251"))));
+    Map<String, Object> conf = mockConfForCluster(
+        clusterName,
+        "kafka01.example.com:10251, kafka02.example.com:10251, kafka03.example.com:10251, kafka04.example.com:10251"
+        );
 
     withExecutor(executor -> {
       ConsumerFreshness freshness = new ConsumerFreshness();
@@ -347,12 +356,16 @@ public class ConsumerFreshnessTest {
   public void testStrictModeConfigurationIsValidServersMatchBurrow() throws Exception {
     Burrow burrow = mock(Burrow.class);
     String clusterName = "cluster1";
-    when(burrow.getClusterDetail(clusterName)).thenReturn(Map.of("module", (Object) Map.of("servers",
-        (Object) List.of("kafka01.example.com:10251", "kafka02.example.com:10251", "kafka03.example.com:10251"))));
+    when(burrow.getClusterDetail(clusterName))
+      .thenReturn(mockBurrowClusterDetailResponse(
+            Arrays.asList("kafka01.example.com:10251", "kafka02.example.com:10251", "kafka03.example.com:10251")
+            )
+          );
 
-    Map<String, Object> conf = Map.of("clusters",
-        (Object) List.of(Map.of("name", (Object) clusterName, "kafka", (Object) Map.of("bootstrap.servers",
-            (Object) "kafka01.example.com:10251, kafka02.example.com:10251, kafka03.example.com:10251"))));
+    Map<String, Object> conf = mockConfForCluster(
+        clusterName,
+        "kafka01.example.com:10251, kafka02.example.com:10251, kafka03.example.com:10251"
+        );
 
     withExecutor(executor -> {
       ConsumerFreshness freshness = new ConsumerFreshness(true);
@@ -374,12 +387,15 @@ public class ConsumerFreshnessTest {
     Burrow burrow = mock(Burrow.class);
     String clusterName = "cluster1";
     when(burrow.getClusterDetail(clusterName))
-        .thenReturn(Map.of("module", (Object) Map.of("servers", (Object) List.of("kafka01.example.com:10251",
-            "kafka02.example.com:10251", "kafka03.example.com:10251", "kafka04.example.com:10251"))));
+      .thenReturn(mockBurrowClusterDetailResponse(
+            Arrays.asList("kafka01.example.com:10251", "kafka02.example.com:10251",
+              "kafka03.example.com:10251", "kafka04.example.com:10251")
+            ));
 
-    Map<String, Object> conf = Map.of("clusters",
-        (Object) List.of(Map.of("name", (Object) clusterName, "kafka", (Object) Map.of("bootstrap.servers",
-            (Object) "kafka01.example.com:10251, kafka02.example.com:10251, kafka03.example.com:10251"))));
+    Map<String, Object> conf = mockConfForCluster(
+        clusterName,
+        "kafka01.example.com:10251, kafka02.example.com:10251, kafka03.example.com:10251"
+        );
 
     withExecutor(executor -> {
       ConsumerFreshness freshness = new ConsumerFreshness(true);
@@ -388,6 +404,27 @@ public class ConsumerFreshnessTest {
       assertEquals("Should be no worker queue for invalid cluster", 0, freshness.getAvailableWorkersForTesting().size(),
           0.0);
     });
+  }
+
+  Map<String, Object> mockConfForCluster(String name, String bootstrapServers) {
+    Map<String, Object> conf = new HashMap<String, Object>();
+    List<Map<String, Object>> clusterList = new LinkedList<Map<String, Object>>();
+    Map<String, Object> clusterConf = new HashMap<String, Object>();
+    Map<String, Object> kafkaConf = new HashMap<String, Object>();
+    kafkaConf.put("bootstrap.servers", bootstrapServers);
+    clusterConf.put("name", name);
+    clusterConf.put("kafka", kafkaConf);
+    clusterList.add(clusterConf);
+    conf.put("clusters", clusterList);
+    return conf;
+  }
+
+  Map<String, Object> mockBurrowClusterDetailResponse(List<String> servers) {
+    Map<String, Object> clusterDetail = new HashMap<String, Object>();
+    Map<String, Object> module = new HashMap<String, Object>();
+    module.put("servers", servers);
+    clusterDetail.put("module", module);
+    return clusterDetail;
   }
 
   /**

@@ -43,6 +43,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.stream.Collectors;
+import java.util.HashSet;
 
 public class ConsumerFreshness {
 
@@ -175,11 +176,12 @@ public class ConsumerFreshness {
       this.metrics.burrowClusterDetailReadFailed.inc();
       return new ValidationResult(false, msg);
     }
-    Set<String> burrowServers = Set
-        .copyOf((List<String>) ((Map<String, Object>) clusterDetail.get("module")).get("servers"));
+    Set<String> burrowServers = new HashSet<String>();
+    burrowServers.addAll((List<String>) ((Map<String, Object>) clusterDetail.get("module")).get("servers"));
     Set<String> configServers = Arrays
         .asList(((Map<String, String>) clusterConf.get("kafka")).get("bootstrap.servers").split(",")).stream()
-        .map(server -> server.strip()).collect(Collectors.toSet());
+        .map(server -> server.trim()).collect(Collectors.toSet());
+
     if (this.strict) {
       return burrowServers.equals(configServers) ? new ValidationResult(true, "")
           : new ValidationResult(false,
