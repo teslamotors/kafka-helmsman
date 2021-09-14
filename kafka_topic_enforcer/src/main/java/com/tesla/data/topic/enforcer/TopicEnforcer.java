@@ -102,7 +102,8 @@ public class TopicEnforcer extends Enforcer<ConfiguredTopic> {
                       case SAFE_DRIFT:
                         LOG.info(msgFmt, result, t.getName(), type);
                         break;
-                      default:
+                      case UNSAFE_DRIFT:
+                      case UNSUPPORTED_DRIFT:
                         LOG.warn(msgFmt, result, t.getName(), type);
                         break;
                     }
