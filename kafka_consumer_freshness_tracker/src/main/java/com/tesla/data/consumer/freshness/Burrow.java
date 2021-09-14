@@ -141,7 +141,7 @@ class Burrow {
     }
 
     public Map<String, Object> getClusterDetail() throws IOException {
-	return Burrow.this.getClusterDetail(this.cluster);
+	    return Burrow.this.getClusterDetail(this.cluster);
     }
   }
 }
