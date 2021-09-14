@@ -176,11 +176,17 @@ public class ConsumerFreshness {
       this.metrics.burrowClusterDetailReadFailed.inc();
       return new ValidationResult(false, msg);
     }
+
+    Map<String, Object> clusterDetailModuleSection = (Map<String, Object>) clusterDetail.get("module");
     Set<String> burrowServers = new HashSet<String>();
-    burrowServers.addAll((List<String>) ((Map<String, Object>) clusterDetail.get("module")).get("servers"));
+    burrowServers.addAll((List<String>) clusterDetailModuleSection.get("servers"));
+
+    Map<String, String> clusterConfKafkaSection = (Map<String, String>) clusterConf.get("kafka");
     Set<String> configServers = Arrays
-        .asList(((Map<String, String>) clusterConf.get("kafka")).get("bootstrap.servers").split(",")).stream()
-        .map(server -> server.trim()).collect(Collectors.toSet());
+        .asList(clusterConfKafkaSection.get("bootstrap.servers").split(","))
+        .stream()
+        .map(server -> server.trim())
+        .collect(Collectors.toSet());
 
     if (this.strict) {
       return burrowServers.equals(configServers) ? new ValidationResult(true, "")
