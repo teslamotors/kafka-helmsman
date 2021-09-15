@@ -37,6 +37,7 @@ import java.util.Arrays;
 import java.util.Map;
 import java.util.Set;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Properties;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.Executors;
@@ -137,9 +138,9 @@ public class ConsumerFreshness {
     this.availableWorkers = ((List<Map<String, Object>>) conf.get("clusters")).stream()
         .map(clusterConf -> {
           // validate the cluster configuration
-          ValidationResult result = validateClusterConf(clusterConf);
-          if (!result.valid) {
-            LOG.error("configuration for cluster " + (String) clusterConf.get("name") + " is invalid", result.reason);
+          Optional<String> validationErrorMsg = validateClusterConf(clusterConf);
+          if (validationErrorMsg.isPresent()) {
+            LOG.error("configuration for cluster " + (String) clusterConf.get("name") + " is invalid", validationErrorMsg);
             return null;
           }
           // allow each cluster to override the number of workers, if desired
@@ -156,46 +157,36 @@ public class ConsumerFreshness {
     this.executor = MoreExecutors.listeningDecorator(Executors.newFixedThreadPool(workerThreadCount));
   }
 
-  class ValidationResult {
-    boolean valid;
-    String reason;
-
-    ValidationResult(boolean valid, String reason) {
-      this.valid = valid;
-      this.reason = reason;
-    }
-  }
-
-  private ValidationResult validateClusterConf(Map<String, Object> clusterConf) {
-    Map<String, Object> clusterDetail;
+  private Optional<String> validateClusterConf(Map<String, Object> clusterConf) {
+    final Map<String, Object> clusterDetail;
     try {
       clusterDetail = this.burrow.getClusterDetail((String) clusterConf.get("name"));
     } catch (IOException e) {
       String msg = "Failed to read cluster detail from burrow: " + e.getMessage();
       LOG.error(msg);
       this.metrics.burrowClusterDetailReadFailed.inc();
-      return new ValidationResult(false, msg);
+      return Optional.of(msg);
     }
 
-    Map<String, Object> clusterDetailModuleSection = (Map<String, Object>) clusterDetail.get("module");
-    Set<String> burrowServers = new HashSet<String>();
-    burrowServers.addAll((List<String>) clusterDetailModuleSection.get("servers"));
+    final Map<String, Object> clusterDetailModuleSection = (Map<String, Object>) clusterDetail.get("module");
+    final Set<String> bootstrapServersFromBurrow = new HashSet<>();
+    bootstrapServersFromBurrow.addAll((List<String>) clusterDetailModuleSection.get("servers"));
 
-    Map<String, String> clusterConfKafkaSection = (Map<String, String>) clusterConf.get("kafka");
-    Set<String> configServers = Arrays
+    final Map<String, String> clusterConfKafkaSection = (Map<String, String>) clusterConf.get("kafka");
+    final Set<String> configServers = Arrays
         .asList(clusterConfKafkaSection.get("bootstrap.servers").split(","))
         .stream()
-        .map(server -> server.trim())
+        .map(String::trim)
         .collect(Collectors.toSet());
 
     if (this.strict) {
-      return burrowServers.equals(configServers) ? new ValidationResult(true, "")
-          : new ValidationResult(false,
+      return bootstrapServersFromBurrow.equals(configServers) ? Optional.empty()
+          : Optional.of(
               "strict mode on and bootstrap.servers list is not identical to server list advertised by Burrow");
     }
-    configServers.removeAll(burrowServers);
-    return configServers.isEmpty() ? new ValidationResult(true, "")
-        : new ValidationResult(false,
+    configServers.removeAll(bootstrapServersFromBurrow);
+    return configServers.isEmpty() ? Optional.empty()
+        : Optional.of(
             "bootstrap.servers contains the following servers which Burrow doesn't advertise: "
                 + String.join(", ", configServers));
   }
