@@ -286,14 +286,9 @@ public class ConsumerFreshnessTest {
 
     withExecutor(executor -> {
       ConsumerFreshness freshness = new ConsumerFreshness();
+      // A runtime exception should occur when the burrow call returns 404
+      thrown.expect(RuntimeException.class);
       freshness.setupWithBurrow(conf, burrow);
-
-      assertEquals("Should be no worker queue for unknown cluster", 0, freshness.getAvailableWorkersForTesting().size(),
-          0.0);
-
-      FreshnessMetrics metrics = freshness.getMetricsForTesting();
-      assertEquals("Should be a log for failed Burrow.getClusterDetail request", 1,
-          metrics.burrowClusterDetailReadFailed.get(), 0.0);
     });
   }
 
@@ -322,9 +317,6 @@ public class ConsumerFreshnessTest {
       thrown.expectMessage("Failed to construct kafka consumer");
 
       freshness.setupWithBurrow(conf, burrow);
-
-      assertEquals("Should be a worker queue for valid cluster", 1, freshness.getAvailableWorkersForTesting().size(),
-          0.0);
     });
   }
 
@@ -345,10 +337,10 @@ public class ConsumerFreshnessTest {
 
     withExecutor(executor -> {
       ConsumerFreshness freshness = new ConsumerFreshness();
-      freshness.setupWithBurrow(conf, burrow);
 
-      assertEquals("Should be no worker queue for invalid cluster", 0, freshness.getAvailableWorkersForTesting().size(),
-          0.0);
+      // A runtime exception should occur when the burrow call returns 404
+      thrown.expect(RuntimeException.class);
+      freshness.setupWithBurrow(conf, burrow);
     });
   }
 
@@ -383,7 +375,7 @@ public class ConsumerFreshnessTest {
   }
 
   @Test
-  public void testStrictmodeConfigurationIsInvalidMissingServer() throws Exception {
+  public void testStrictModeConfigurationIsInvalidMissingServer() throws Exception {
     Burrow burrow = mock(Burrow.class);
     String clusterName = "cluster1";
     when(burrow.getClusterDetail(clusterName))
@@ -399,10 +391,9 @@ public class ConsumerFreshnessTest {
 
     withExecutor(executor -> {
       ConsumerFreshness freshness = new ConsumerFreshness(true);
+      // A runtime exception should occur when the burrow call returns 404
+      thrown.expect(RuntimeException.class);
       freshness.setupWithBurrow(conf, burrow);
-
-      assertEquals("Should be no worker queue for invalid cluster", 0, freshness.getAvailableWorkersForTesting().size(),
-          0.0);
     });
   }
 

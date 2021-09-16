@@ -140,8 +140,11 @@ public class ConsumerFreshness {
           // validate the cluster configuration
           Optional<String> validationErrorMsg = validateClusterConf(clusterConf);
           if (validationErrorMsg.isPresent()) {
-            LOG.error("configuration for cluster " + (String) clusterConf.get("name") + " is invalid", validationErrorMsg);
-            return null;
+            throw new RuntimeException(
+                    String.format("configuration for cluster %s is invalid: %s",
+                            clusterConf.get("name"),
+                            validationErrorMsg)
+            );
           }
           // allow each cluster to override the number of workers, if desired
           int numConsumers = (int) clusterConf.getOrDefault("numConsumers", DEFAULT_KAFKA_CONSUMER_COUNT);
