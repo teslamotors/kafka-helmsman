@@ -162,7 +162,7 @@ public class ConsumerFreshness {
       bootstrapServersFromBurrow = new HashSet<>(this.burrow.getClusterBootstrapServers(clusterName));
     } catch (IOException e) {
       this.metrics.burrowClusterDetailReadFailed.labels(clusterName).inc();
-      return Optional.of(String.format("failed to read cluster detail from Burrow: %s", e));
+      return Optional.of("failed to read cluster detail from Burrow: " + e.getMessage());
     }
 
     final Map<String, String> clusterConfKafkaSection = (Map<String, String>) clusterConf.get("kafka");
