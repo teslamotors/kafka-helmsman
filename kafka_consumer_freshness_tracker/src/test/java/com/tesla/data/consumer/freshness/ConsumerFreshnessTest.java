@@ -359,7 +359,8 @@ public class ConsumerFreshnessTest {
         );
 
     withExecutor(executor -> {
-      ConsumerFreshness freshness = new ConsumerFreshness(true);
+      ConsumerFreshness freshness = new ConsumerFreshness();
+      freshness.strict = true;
 
       // This exception should be thrown when the consumers are attempted to be
       // connected after validation succeeds
@@ -385,7 +386,8 @@ public class ConsumerFreshnessTest {
         );
 
     withExecutor(executor -> {
-      ConsumerFreshness freshness = new ConsumerFreshness(true);
+      ConsumerFreshness freshness = new ConsumerFreshness();
+      freshness.strict = true;
       // A runtime exception should occur when the burrow call returns 404
       thrown.expect(RuntimeException.class);
       freshness.setupWithBurrow(conf, burrow);

@@ -62,7 +62,7 @@ public class ConsumerFreshness {
   private boolean help = false;
 
   @Parameter(names = "--strict", description = "Run in strict configuration validation mode")
-  private boolean strict = false;
+  boolean strict = false;
 
   private FreshnessMetrics metrics = new FreshnessMetrics();
   private Burrow burrow;
@@ -70,11 +70,6 @@ public class ConsumerFreshness {
   private ListeningExecutorService executor;
 
   public ConsumerFreshness() {
-  }
-
-  @VisibleForTesting
-  ConsumerFreshness(boolean strict) {
-    this.strict = strict;
   }
 
   public static void main(String[] args) throws IOException, InterruptedException {
