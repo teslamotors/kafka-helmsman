@@ -69,9 +69,6 @@ public class ConsumerFreshness {
   private Map<String, ArrayBlockingQueue<KafkaConsumer>> availableWorkers;
   private ListeningExecutorService executor;
 
-  public ConsumerFreshness() {
-  }
-
   public static void main(String[] args) throws IOException, InterruptedException {
     ConsumerFreshness freshness = new ConsumerFreshness();
     JCommander command = JCommander.newBuilder()
