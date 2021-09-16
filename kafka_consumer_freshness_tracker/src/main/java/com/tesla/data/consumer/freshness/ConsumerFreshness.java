@@ -140,11 +140,15 @@ public class ConsumerFreshness {
           // validate the cluster configuration
           Optional<String> validationErrorMsg = validateClusterConf(clusterConf);
           if (validationErrorMsg.isPresent()) {
-            throw new RuntimeException(
-                    String.format("configuration for cluster %s is invalid: %s",
-                            clusterConf.get("name"),
-                            validationErrorMsg)
+            String msg = String.format("configuration for cluster %s is invalid: %s",
+                    clusterConf.get("name"),
+                    validationErrorMsg
             );
+            if (strict) {
+              throw new RuntimeException(msg);
+            } else {
+              LOG.warn(msg);
+            }
           }
           // allow each cluster to override the number of workers, if desired
           int numConsumers = (int) clusterConf.getOrDefault("numConsumers", DEFAULT_KAFKA_CONSUMER_COUNT);
@@ -154,21 +158,19 @@ public class ConsumerFreshness {
           }
           return new AbstractMap.SimpleEntry<>((String) clusterConf.get("name"), queue);
         })
-        .filter(cluster -> cluster != null)
         .collect(Collectors.toMap(AbstractMap.SimpleEntry::getKey, AbstractMap.SimpleEntry::getValue));
 
     this.executor = MoreExecutors.listeningDecorator(Executors.newFixedThreadPool(workerThreadCount));
   }
 
   private Optional<String> validateClusterConf(Map<String, Object> clusterConf) {
+    final String clusterName = (String) clusterConf.get("name");
     final Map<String, Object> clusterDetail;
     try {
-      clusterDetail = this.burrow.getClusterDetail((String) clusterConf.get("name"));
+      clusterDetail = this.burrow.getClusterDetail(clusterName);
     } catch (IOException e) {
-      String msg = "Failed to read cluster detail from burrow: " + e.getMessage();
-      LOG.error(msg);
       this.metrics.burrowClusterDetailReadFailed.inc();
-      return Optional.of(msg);
+      return Optional.of(String.format("failed to read cluster detail from Burrow: %s", e));
     }
 
     final Map<String, Object> clusterDetailModuleSection = (Map<String, Object>) clusterDetail.get("module");
