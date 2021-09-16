@@ -298,8 +298,8 @@ public class ConsumerFreshnessTest {
   public void testNormalModeConfigurationIsValidServersMatchBurrow() throws Exception {
     Burrow burrow = mock(Burrow.class);
     String clusterName = "cluster1";
-    when(burrow.getClusterDetail(clusterName))
-      .thenReturn(mockBurrowClusterDetailResponse("kafka01.example.com:10251", "kafka02.example.com:10251",
+    when(burrow.getClusterBootstrapServers(clusterName))
+      .thenReturn(Arrays.asList("kafka01.example.com:10251", "kafka02.example.com:10251",
               "kafka03.example.com:10251")
           );
 
@@ -324,8 +324,8 @@ public class ConsumerFreshnessTest {
   public void testNormalModeConfigurationIsInvalidContainsUnknownServer() throws Exception {
     Burrow burrow = mock(Burrow.class);
     String clusterName = "cluster1";
-    when(burrow.getClusterDetail(clusterName))
-      .thenReturn(mockBurrowClusterDetailResponse(
+    when(burrow.getClusterBootstrapServers(clusterName))
+      .thenReturn(Arrays.asList(
             "kafka01.example.com:10251", "kafka02.example.com:10251", "kafka03.example.com:10251")
           );
 
@@ -348,8 +348,8 @@ public class ConsumerFreshnessTest {
   public void testStrictModeConfigurationIsValidServersMatchBurrow() throws Exception {
     Burrow burrow = mock(Burrow.class);
     String clusterName = "cluster1";
-    when(burrow.getClusterDetail(clusterName))
-      .thenReturn(mockBurrowClusterDetailResponse("kafka01.example.com:10251", "kafka02.example.com:10251",
+    when(burrow.getClusterBootstrapServers(clusterName))
+      .thenReturn(Arrays.asList("kafka01.example.com:10251", "kafka02.example.com:10251",
               "kafka03.example.com:10251")
           );
 
@@ -374,8 +374,8 @@ public class ConsumerFreshnessTest {
   public void testStrictModeConfigurationIsInvalidMissingServer() throws Exception {
     Burrow burrow = mock(Burrow.class);
     String clusterName = "cluster1";
-    when(burrow.getClusterDetail(clusterName))
-      .thenReturn(mockBurrowClusterDetailResponse("kafka01.example.com:10251", "kafka02.example.com:10251",
+    when(burrow.getClusterBootstrapServers(clusterName))
+      .thenReturn(Arrays.asList("kafka01.example.com:10251", "kafka02.example.com:10251",
               "kafka03.example.com:10251", "kafka04.example.com:10251")
             );
 
@@ -404,14 +404,6 @@ public class ConsumerFreshnessTest {
     clusterList.add(clusterConf);
     conf.put("clusters", clusterList);
     return conf;
-  }
-
-  Map<String, Object> mockBurrowClusterDetailResponse(String... servers) {
-    Map<String, Object> clusterDetail = new HashMap<String, Object>();
-    Map<String, Object> module = new HashMap<String, Object>();
-    module.put("servers", Arrays.asList(servers));
-    clusterDetail.put("module", module);
-    return clusterDetail;
   }
 
   /**

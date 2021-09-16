@@ -142,7 +142,7 @@ public class ConsumerFreshness {
           if (validationErrorMsg.isPresent()) {
             String msg = String.format("configuration for cluster %s is invalid: %s",
                     clusterConf.get("name"),
-                    validationErrorMsg
+                    validationErrorMsg.get()
             );
             if (strict) {
               throw new RuntimeException(msg);
@@ -165,35 +165,34 @@ public class ConsumerFreshness {
 
   private Optional<String> validateClusterConf(Map<String, Object> clusterConf) {
     final String clusterName = (String) clusterConf.get("name");
-    final Map<String, Object> clusterDetail;
+    final Set<String> bootstrapServersFromBurrow;
     try {
-      clusterDetail = this.burrow.getClusterDetail(clusterName);
+      bootstrapServersFromBurrow = new HashSet<>(this.burrow.getClusterBootstrapServers(clusterName));
     } catch (IOException e) {
       this.metrics.burrowClusterDetailReadFailed.inc();
       return Optional.of(String.format("failed to read cluster detail from Burrow: %s", e));
     }
 
-    final Map<String, Object> clusterDetailModuleSection = (Map<String, Object>) clusterDetail.get("module");
-    final Set<String> bootstrapServersFromBurrow = new HashSet<>();
-    bootstrapServersFromBurrow.addAll((List<String>) clusterDetailModuleSection.get("servers"));
-
     final Map<String, String> clusterConfKafkaSection = (Map<String, String>) clusterConf.get("kafka");
-    final Set<String> configServers = Arrays
-        .asList(clusterConfKafkaSection.get("bootstrap.servers").split(","))
-        .stream()
-        .map(String::trim)
-        .collect(Collectors.toSet());
+    final Set<String> bootstrapServersFromConfig = Arrays
+            .stream(clusterConfKafkaSection.get("bootstrap.servers").split(","))
+            .map(String::trim)
+            .collect(Collectors.toSet());
 
     if (this.strict) {
-      return bootstrapServersFromBurrow.equals(configServers) ? Optional.empty()
-          : Optional.of(
-              "strict mode on and bootstrap.servers list is not identical to server list advertised by Burrow");
+      return bootstrapServersFromBurrow.equals(bootstrapServersFromConfig) ? Optional.empty()
+          : Optional.of(String.format(
+                      "strict mode on and the list of bootstrap servers in config is not identical to the " +
+                              "list advertised by Burrow\nconfig: %s\nburrow: %s",
+              String.join(", ", bootstrapServersFromConfig),
+              String.join(", ", bootstrapServersFromBurrow)
+              ));
     }
-    configServers.removeAll(bootstrapServersFromBurrow);
-    return configServers.isEmpty() ? Optional.empty()
+    bootstrapServersFromConfig.removeAll(bootstrapServersFromBurrow);
+    return bootstrapServersFromConfig.isEmpty() ? Optional.empty()
         : Optional.of(
             "bootstrap.servers contains the following servers which Burrow doesn't advertise: "
-                + String.join(", ", configServers));
+                + String.join(", ", bootstrapServersFromConfig));
   }
 
   private KafkaConsumer createConsumer(Map<String, Object> conf) {
