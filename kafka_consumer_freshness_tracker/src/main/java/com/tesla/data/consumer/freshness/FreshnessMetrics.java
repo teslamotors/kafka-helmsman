@@ -77,6 +77,7 @@ public class FreshnessMetrics {
     burrowClusterDetailReadFailed = new Counter.Builder()
         .name("kafka_consumer_freshness_runtime_failed_burrow_cluster_detail_read_failed")
         .help("Number of times we failed to lookup a cluster from burrow")
+        .labelNames("cluster")
         .register();
     timestampType = new Counter.Builder()
         .name("kafka_consumer_freshness_runtime_timestamp_type")

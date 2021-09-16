@@ -161,7 +161,7 @@ public class ConsumerFreshness {
     try {
       bootstrapServersFromBurrow = new HashSet<>(this.burrow.getClusterBootstrapServers(clusterName));
     } catch (IOException e) {
-      this.metrics.burrowClusterDetailReadFailed.inc();
+      this.metrics.burrowClusterDetailReadFailed.labels(clusterName).inc();
       return Optional.of(String.format("failed to read cluster detail from Burrow: %s", e));
     }
 
