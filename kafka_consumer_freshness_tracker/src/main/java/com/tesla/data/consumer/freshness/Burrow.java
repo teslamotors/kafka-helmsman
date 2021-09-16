@@ -116,7 +116,7 @@ class Burrow {
         .collect(Collectors.toList());
   }
 
-  public Map<String, Object> getClusterDetail(String cluster) throws IOException {
+  private Map<String, Object> getClusterDetail(String cluster) throws IOException {
     final Map<String, Map<String, Object>> response =
             (Map<String, Map<String, Object>>) this.request(cluster).get("cluster");
     return response.get("cluster");

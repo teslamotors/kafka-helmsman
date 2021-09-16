@@ -281,7 +281,7 @@ public class ConsumerFreshnessTest {
   public void testConfigurationContainsUnknownCluster() throws Exception {
     Burrow burrow = mock(Burrow.class);
     String clusterName = "bad_cluster";
-    when(burrow.getClusterDetail(clusterName)).thenThrow(new IOException());
+    when(burrow.getClusterBootstrapServers(clusterName)).thenThrow(new IOException());
     Map<String, Object> conf = mockConfForCluster(clusterName, "l1.example.com:9092",
             "l2.example.com:9092", "l3.example.com:9092");
 
