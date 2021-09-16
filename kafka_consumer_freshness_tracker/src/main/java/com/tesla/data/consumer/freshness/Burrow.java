@@ -147,9 +147,5 @@ class Burrow {
     public String getCluster() {
       return cluster;
     }
-
-    public Map<String, Object> getClusterDetail() throws IOException {
-      return Burrow.this.getClusterDetail(this.cluster);
-    }
   }
 }
