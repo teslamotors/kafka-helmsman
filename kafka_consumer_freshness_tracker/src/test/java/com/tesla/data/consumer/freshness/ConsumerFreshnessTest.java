@@ -290,6 +290,8 @@ public class ConsumerFreshnessTest {
     Optional<String> msg = freshness.validateClusterConf(conf);
     Assert.assertTrue(msg.isPresent());
     Assert.assertTrue(msg.get().contains("failed to read cluster detail from Burrow: "));
+    Assert.assertEquals(1.0,
+            freshness.getMetricsForTesting().burrowClusterDetailReadFailed.labels(clusterName).get(), 0.0);
   }
 
   @Test
