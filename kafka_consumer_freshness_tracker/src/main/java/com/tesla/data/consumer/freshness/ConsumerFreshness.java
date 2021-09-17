@@ -187,7 +187,7 @@ public class ConsumerFreshness {
     if (this.strict) {
       return bootstrapServersFromBurrow.equals(bootstrapServersFromConfig) ? Optional.empty()
           : Optional.of(String.format(
-                      "strict mode on and the list of bootstrap servers in config is not identical to the " +
+                      "strict mode on and the list of bootstrap servers in config is not the same as the " +
                               "list advertised by Burrow\nconfig: %s\nburrow: %s",
               String.join(", ", bootstrapServersFromConfig),
               String.join(", ", bootstrapServersFromBurrow)
