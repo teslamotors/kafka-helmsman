@@ -48,6 +48,8 @@ bazel-bin/kafka_consumer_freshness_tracker/src/main/java/com/tesla/data/consumer
 Bundled as a jar you can run the Tracker with a configuration file with the `--conf <path to conf>` flag. For local 
 testing, you can also just add the `--once` flag to just run the Tracker once, and then dump the metrics to the console, 
 before stopping. 
+
+## Validation flags
 The cluster configurations are validated before the Tracker is run. Validation will fail if Burrow is unreachable, if
 the cluster is unknown to Burrow, or if there is an inconsistency between the bootstrap servers advertised by Burrow and
 those listed in the Tracker configuration. The definition of inconsistent, as well as the validation failure behaviour,
