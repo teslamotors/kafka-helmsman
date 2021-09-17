@@ -397,11 +397,6 @@ public class ConsumerFreshness {
     }
   }
 
-  @VisibleForTesting
-  Map<String, ArrayBlockingQueue<KafkaConsumer>> getAvailableWorkersForTesting() {
-    return this.availableWorkers;
-  }
-
   public FreshnessMetrics getMetricsForTesting() {
     return this.metrics;
   }
