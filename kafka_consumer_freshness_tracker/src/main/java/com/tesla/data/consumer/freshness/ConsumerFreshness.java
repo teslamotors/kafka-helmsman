@@ -148,17 +148,16 @@ public class ConsumerFreshness {
   }
 
   /**
-   * Validate an individual cluster's configuration. A cluster's configuration is valid if:
-   * a) Looking it up by name in Burrow returns a successful response
-   * b) Bootstrap serVers match those in burrow
+   * Validate an individual cluster's configuration. A cluster's configuration is valid if:<br>
+   * a) Looking it up by name in Burrow returns a successful response<br>
+   * b) Bootstrap servers match those in burrow<br>
    *  i. in strict mode: The bootstrap server list in the config and the list returned from Burrow contain the same set
-   *  of servers
+   *  of servers<br>
    *  ii. in normal mode: All entries in the config's bootstrap server list are advertised by Burrow (Burrow could
    *  have additional entries which don't appear in the config).
    *
    * @param clusterConf the cluster configuration
-   * @return an optional string which will either contain the validation failure message if validation fails or be empty
-   * if validation succeeds
+   * @return a message describing the validation failure, if the config was invalid. Empty otherwise.
    */
   Optional<String> validateClusterConf(Map<String, Object> clusterConf) {
     final String clusterName = (String) clusterConf.get("name");
