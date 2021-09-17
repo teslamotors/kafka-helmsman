@@ -130,17 +130,16 @@ public class ConsumerFreshness {
     this.availableWorkers = ((List<Map<String, Object>>) conf.get("clusters")).stream()
         .map(clusterConf -> {
           // validate the cluster configuration
-          Optional<String> validationErrorMsg = validateClusterConf(clusterConf);
-          if (validationErrorMsg.isPresent()) {
-            String msg = String.format("configuration for cluster %s is invalid: %s",
-                    clusterConf.get("name"), validationErrorMsg.get()
-            );
-            if (strict) {
-              throw new RuntimeException(msg);
-            } else {
-              LOG.warn(msg);
-            }
-          }
+          validateClusterConf(clusterConf)
+              .map(error -> String.format("configuration for cluster %s is invalid: %s",
+                              clusterConf.get("name"), error))
+              .ifPresent(msg -> {
+                if (strict) {
+                  throw new RuntimeException(msg);
+                } else {
+                  LOG.warn(msg);
+                }
+              });
           // allow each cluster to override the number of workers, if desired
           int numConsumers = (int) clusterConf.getOrDefault("numConsumers", DEFAULT_KAFKA_CONSUMER_COUNT);
           ArrayBlockingQueue<KafkaConsumer> queue = new ArrayBlockingQueue<>(numConsumers);
