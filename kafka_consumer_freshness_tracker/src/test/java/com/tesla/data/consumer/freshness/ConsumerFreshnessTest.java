@@ -292,7 +292,6 @@ public class ConsumerFreshnessTest {
     freshness.setupWithBurrow(conf, burrow);
   }
 
-
   @Test
   public void testNormalModeConfigurationIsValidServersMatchBurrow() throws Exception {
     Burrow burrow = mock(Burrow.class);
