@@ -155,13 +155,6 @@ public class ConsumerFreshness {
     this.executor = MoreExecutors.listeningDecorator(Executors.newFixedThreadPool(workerThreadCount));
   }
 
-  //
-  //
-  //
-  //
-  //
-  //
-
   /**
    * Validate an individual cluster's configuration. A cluster's configuration is valid if:
    * a) Looking it up by name in Burrow returns a successful response (not 404)
