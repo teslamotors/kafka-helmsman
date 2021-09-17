@@ -133,8 +133,7 @@ public class ConsumerFreshness {
           Optional<String> validationErrorMsg = validateClusterConf(clusterConf);
           if (validationErrorMsg.isPresent()) {
             String msg = String.format("configuration for cluster %s is invalid: %s",
-                    clusterConf.get("name"),
-                    validationErrorMsg.get()
+                    clusterConf.get("name"), validationErrorMsg.get()
             );
             if (strict) {
               throw new RuntimeException(msg);
