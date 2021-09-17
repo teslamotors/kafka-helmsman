@@ -54,8 +54,8 @@ those listed in the Tracker configuration. The definition of inconsistent, as we
 depends on if the tracker is run in normal or strict mode.
 In normal mode, the bootstrap server list in the configuration must not contain any servers which don't appear in Burrow,
 and a warning will be logged if validation fails.
-In strict mode, the bootstrap server lists from Burrow and in the Tracker configuration must match exactly, and the Tracker
-will crash if validation fails.
+In strict mode, the bootstrap server lists from Burrow and in the Tracker configuration must contain the same set of
+servers, and the Tracker will crash if validation fails.
 The Tracker runs in normal mode by default; strict mode can be enabled by supplying the `--strict` flag.
 
 ## Configuration
