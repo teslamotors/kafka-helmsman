@@ -47,8 +47,12 @@ bazel-bin/kafka_consumer_freshness_tracker/src/main/java/com/tesla/data/consumer
 
 Bundled as a jar you can run the Tracker with a configuration file with the `--conf <path to conf>` flag. For local 
 testing, you can also just add the `--once` flag to just run the Tracker once, and then dump the metrics to the console, 
-before stopping. The `--strict` flag can be used to run the Tracker in strict mode, which enforces stricter validation of the cluster
-configurations.
+before stopping. 
+The `--strict` flag can be used to run the Tracker in strict mode, which enforces stricter validation of the cluster
+configurations. With `--strict` enabled, the application will crash if the bootstrap servers specified for the Tracker do
+not exactly match the bootstrap servers used for configuring the Burrow instance. In normal mode (without the `--strict` flag),
+the Tracker will emit a warning if there are bootstrap servers specified for the Tracker which do not also appear in the
+Burrow instance's bootstrap servers list.
 
 ## Configuration
 
