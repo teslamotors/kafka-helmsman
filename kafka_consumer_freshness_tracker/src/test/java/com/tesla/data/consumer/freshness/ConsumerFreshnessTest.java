@@ -24,6 +24,7 @@ import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.KafkaException;
 import org.apache.kafka.common.record.TimestampType;
+import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
@@ -35,15 +36,12 @@ import tesla.shade.com.google.common.util.concurrent.MoreExecutors;
 
 import java.io.IOException;
 import java.time.Duration;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.List;
+import java.util.*;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.function.Consumer;
-import java.util.Arrays;
-import java.util.LinkedList;
+import java.util.stream.Collectors;
 
 /**
  * Validate that we compute freshness and handle errors as expected. Specifically, for errors, we do the following:
@@ -287,9 +285,11 @@ public class ConsumerFreshnessTest {
     );
 
     ConsumerFreshness freshness = new ConsumerFreshness();
-    // A runtime exception should occur when the burrow call returns 404
-    thrown.expect(RuntimeException.class);
-    freshness.setupWithBurrow(conf, burrow);
+    freshness.burrow = burrow;
+
+    Optional<String> msg = freshness.validateClusterConf(conf);
+    Assert.assertTrue(msg.isPresent());
+    Assert.assertTrue(msg.get().contains("failed to read cluster detail from Burrow: "));
   }
 
   @Test
@@ -302,17 +302,13 @@ public class ConsumerFreshnessTest {
 
     Map<String, Object> conf = mockConfForCluster(
         clusterName,
-        "kafka01.example.com:10251", "kafka02.example.com:10251", "kafka03.example.com:10251"
+        "kafka01.example.com:10251", "kafka02.example.com:10251"
         );
 
     ConsumerFreshness freshness = new ConsumerFreshness();
+    freshness.burrow = burrow;
 
-    // This exception should be thrown when the consumers are attempted to be
-    // connected after validation succeeds
-    thrown.expect(KafkaException.class);
-    thrown.expectMessage("Failed to construct kafka consumer");
-
-    freshness.setupWithBurrow(conf, burrow);
+    Assert.assertEquals(Optional.empty(), freshness.validateClusterConf(conf));
   }
 
   @Test
@@ -330,10 +326,12 @@ public class ConsumerFreshnessTest {
         );
 
     ConsumerFreshness freshness = new ConsumerFreshness();
+    freshness.burrow = burrow;
 
-    // A runtime exception should occur when the burrow call returns 404
-    thrown.expect(RuntimeException.class);
-    freshness.setupWithBurrow(conf, burrow);
+    String expected = "bootstrap.servers contains the following servers which Burrow doesn't advertise: " +
+            "kafka03.example.com:10251";
+
+    Assert.assertEquals(Optional.of(expected), freshness.validateClusterConf(conf));
   }
 
   @Test
@@ -350,49 +348,50 @@ public class ConsumerFreshnessTest {
         );
 
     ConsumerFreshness freshness = new ConsumerFreshness();
+    freshness.burrow = burrow;
     freshness.strict = true;
 
-    // This exception should be thrown when the consumers are attempted to be
-    // connected after validation succeeds
-    thrown.expect(KafkaException.class);
-    thrown.expectMessage("Failed to construct kafka consumer");
-
-    freshness.setupWithBurrow(conf, burrow);
+    Assert.assertEquals(Optional.empty(), freshness.validateClusterConf(conf));
   }
 
   @Test
   public void testStrictModeConfigurationIsInvalidMissingServer() throws Exception {
     Burrow burrow = mock(Burrow.class);
     String clusterName = "cluster1";
+    List<String> burrowBootstrapServers = Arrays.asList("kafka01.example.com:10251", "kafka02.example.com:10251",
+            "kafka03.example.com:10251");
+    List<String> confBootstrapServers = Arrays.asList("kafka01.example.com:10251", "kafka02.example.com:10251");
+
     when(burrow.getClusterBootstrapServers(clusterName))
-      .thenReturn(Arrays.asList("kafka01.example.com:10251", "kafka02.example.com:10251",
-              "kafka03.example.com:10251")
-            );
+      .thenReturn(burrowBootstrapServers);
 
     Map<String, Object> conf = mockConfForCluster(
         clusterName,
-        "kafka01.example.com:10251", "kafka02.example.com:10251"
+            confBootstrapServers.toArray(new String[0])
         );
 
     ConsumerFreshness freshness = new ConsumerFreshness();
+    freshness.burrow = burrow;
     freshness.strict = true;
-    // A runtime exception should occur when the burrow call returns 404
-    thrown.expect(RuntimeException.class);
-    freshness.setupWithBurrow(conf, burrow);
+
+    String expected = String.format(
+            "strict mode on and the set of bootstrap servers in config is not the same as the " +
+                    "set advertised by Burrow\nconfig: %s\nburrow: %s",
+            String.join(", ", confBootstrapServers),
+            String.join(", ", burrowBootstrapServers)
+    );
+
+    Assert.assertEquals(Optional.of(expected), freshness.validateClusterConf(conf));
   }
 
   Map<String, Object> mockConfForCluster(String name, String... bootstrapServers) {
-    Map<String, Object> conf = new HashMap<>();
-    List<Map<String, Object>> clusterList = new LinkedList<>();
     Map<String, Object> clusterConf = new HashMap<>();
     Map<String, Object> kafkaConf = new HashMap<>();
     String bootstrapServersString = String.join(", ", bootstrapServers);
     kafkaConf.put("bootstrap.servers", bootstrapServersString);
     clusterConf.put("name", name);
     clusterConf.put("kafka", kafkaConf);
-    clusterList.add(clusterConf);
-    conf.put("clusters", clusterList);
-    return conf;
+    return clusterConf;
   }
 
   /**

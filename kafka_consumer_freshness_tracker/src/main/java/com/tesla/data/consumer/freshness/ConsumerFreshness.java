@@ -65,7 +65,7 @@ public class ConsumerFreshness {
   boolean strict = false;
 
   private FreshnessMetrics metrics = new FreshnessMetrics();
-  private Burrow burrow;
+  Burrow burrow;
   private Map<String, ArrayBlockingQueue<KafkaConsumer>> availableWorkers;
   private ListeningExecutorService executor;
 
@@ -120,12 +120,7 @@ public class ConsumerFreshness {
   }
 
   private void setup(Map<String, Object> conf) {
-    setupWithBurrow(conf, new Burrow((Map<String, Object>) conf.get("burrow")));
-  }
-
-  @VisibleForTesting
-  void setupWithBurrow(Map<String, Object> conf, Burrow burrow) {
-    this.burrow = burrow;
+    this.burrow = new Burrow((Map<String, Object>) conf.get("burrow"));
     int workerThreadCount = (int) conf.getOrDefault("workerThreadCount", DEFAULT_WORKER_THREADS);
     this.availableWorkers = ((List<Map<String, Object>>) conf.get("clusters")).stream()
         .map(clusterConf -> {
@@ -155,7 +150,7 @@ public class ConsumerFreshness {
   /**
    * Validate an individual cluster's configuration. A cluster's configuration is valid if:
    * a) Looking it up by name in Burrow returns a successful response
-   * b) Bootstrap servers match those in burrow
+   * b) Bootstrap serVers match those in burrow
    *  i. in strict mode: The bootstrap server list in the config and the list returned from Burrow contain the same set
    *  of servers
    *  ii. in normal mode: All entries in the config's bootstrap server list are advertised by Burrow (Burrow could
@@ -165,7 +160,7 @@ public class ConsumerFreshness {
    * @return an optional string which will either contain the validation failure message if validation fails or be empty
    * if validation succeeds
    */
-  private Optional<String> validateClusterConf(Map<String, Object> clusterConf) {
+  Optional<String> validateClusterConf(Map<String, Object> clusterConf) {
     final String clusterName = (String) clusterConf.get("name");
     final Set<String> bootstrapServersFromBurrow;
     try {
