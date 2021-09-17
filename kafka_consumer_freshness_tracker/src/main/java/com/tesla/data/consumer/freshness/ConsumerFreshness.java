@@ -149,8 +149,7 @@ public class ConsumerFreshness {
             queue.add(createConsumer(clusterConf));
           }
           return new AbstractMap.SimpleEntry<>((String) clusterConf.get("name"), queue);
-        })
-        .collect(Collectors.toMap(AbstractMap.SimpleEntry::getKey, AbstractMap.SimpleEntry::getValue));
+        }).collect(Collectors.toMap(AbstractMap.SimpleEntry::getKey, AbstractMap.SimpleEntry::getValue));
 
     this.executor = MoreExecutors.listeningDecorator(Executors.newFixedThreadPool(workerThreadCount));
   }
