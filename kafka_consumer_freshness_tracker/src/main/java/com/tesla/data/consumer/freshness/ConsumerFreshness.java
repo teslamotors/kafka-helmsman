@@ -186,10 +186,10 @@ public class ConsumerFreshness {
     if (this.strict) {
       return bootstrapServersFromBurrow.equals(bootstrapServersFromConfig) ? Optional.empty()
           : Optional.of(String.format(
-                      "strict mode on and the list of bootstrap servers in config is not the same as the " +
-                              "list advertised by Burrow\nconfig: %s\nburrow: %s",
-              String.join(", ", bootstrapServersFromConfig),
-              String.join(", ", bootstrapServersFromBurrow)
+                      "strict mode on and the set of bootstrap servers in config is not the same as the " +
+                              "set advertised by Burrow\nconfig: %s\nburrow: %s",
+              bootstrapServersFromConfig.stream().sorted().collect(Collectors.joining(", ")),
+              bootstrapServersFromBurrow.stream().sorted().collect(Collectors.joining(", "))
               ));
     }
     bootstrapServersFromConfig.removeAll(bootstrapServersFromBurrow);
