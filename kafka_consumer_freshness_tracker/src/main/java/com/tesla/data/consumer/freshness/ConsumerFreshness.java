@@ -173,7 +173,6 @@ public class ConsumerFreshness {
     final Map<String, String> clusterConfKafkaSection = (Map<String, String>) clusterConf.get("kafka");
     final Set<String> bootstrapServersFromConfig = Arrays
             .stream(clusterConfKafkaSection.get("bootstrap.servers").split(","))
-            .map(String::trim)
             .collect(Collectors.toSet());
 
     if (this.strict) {

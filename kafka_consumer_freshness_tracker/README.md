@@ -75,10 +75,10 @@ burrow:
 clusters:
   - name: logs-cluster
     kafka:
-      bootstrap.servers: "l1.example.com:9092, l2.example.com:9092, l3.example.com:9092"
+      bootstrap.servers: "l1.example.com:9092,l2.example.com:9092,l3.example.com:9092"
   - name: metrics-cluster
     kafka:
-      bootstrap.servers: "m1.example.com:9092, m2.example.com:9092, m3.example.com:9092"
+      bootstrap.servers: "m1.example.com:9092,m2.example.com:9092,m3.example.com:9092"
 ```
 
 The Kafka configs are passed directly to the consumer, so you can add any standard

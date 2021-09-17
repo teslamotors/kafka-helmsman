@@ -389,7 +389,7 @@ public class ConsumerFreshnessTest {
   Map<String, Object> mockConfForCluster(String name, String... bootstrapServers) {
     Map<String, Object> clusterConf = new HashMap<>();
     Map<String, Object> kafkaConf = new HashMap<>();
-    String bootstrapServersString = String.join(", ", bootstrapServers);
+    String bootstrapServersString = String.join(",", bootstrapServers);
     kafkaConf.put("bootstrap.servers", bootstrapServersString);
     clusterConf.put("name", name);
     clusterConf.put("kafka", kafkaConf);
