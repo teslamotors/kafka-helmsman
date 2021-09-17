@@ -155,12 +155,25 @@ public class ConsumerFreshness {
     this.executor = MoreExecutors.listeningDecorator(Executors.newFixedThreadPool(workerThreadCount));
   }
 
-  // Validate an individual cluster's configuration. A cluster's configuration is valid if:
-  // a) Looking it up by name in Burrow returns a successful response (not 404)
-  // b)
-  //  i. in strict mode: The bootstrap server list in the config matches the list advertised by Burrow exactly
-  // ii. in normal mode: All entries in the config's bootstrap server list are advertised by Burrow (Burrow could
-  // have extras which don't appear in the config).
+  //
+  //
+  //
+  //
+  //
+  //
+
+  /**
+   * Validate an individual cluster's configuration. A cluster's configuration is valid if:
+   * a) Looking it up by name in Burrow returns a successful response (not 404)
+   * b) Bootstrap servers match those in burrow
+   *  i. in strict mode: The bootstrap server list in the config matches the list advertised by Burrow exactly
+   *  ii. in normal mode: All entries in the config's bootstrap server list are advertised by Burrow (Burrow could
+   * have extras which don't appear in the config).
+   *
+   * @param clusterConf the cluster configuration
+   * @return an optional string which will contain the validation failure message if validation fails or null if
+   * validation succeeds
+   */
   private Optional<String> validateClusterConf(Map<String, Object> clusterConf) {
     final String clusterName = (String) clusterConf.get("name");
     final Set<String> bootstrapServersFromBurrow;
