@@ -50,12 +50,13 @@ testing, you can also just add the `--once` flag to just run the Tracker once, a
 before stopping. 
 
 ## Validation flags
+
 The cluster configurations are validated before the Tracker is run. Validation will fail if Burrow is unreachable, if
 the cluster is unknown to Burrow, or if there is an inconsistency between the bootstrap servers advertised by Burrow and
 those listed in the Tracker configuration. The definition of inconsistent, as well as the validation failure behaviour,
 depends on if the tracker is run in normal or strict mode.
-In normal mode, the bootstrap server list in the configuration must not contain any servers which don't appear in Burrow,
-and a warning will be logged if validation fails.
+In normal mode (this is the default), the bootstrap server list in the configuration must not contain any servers which
+don't appear in Burrow, and a warning will be logged if validation fails.
 In strict mode, the bootstrap server lists from Burrow and in the Tracker configuration must contain the same set of
 servers, and the Tracker will crash if validation fails.
 The Tracker runs in normal mode by default; strict mode can be enabled by supplying the `--strict` flag.
