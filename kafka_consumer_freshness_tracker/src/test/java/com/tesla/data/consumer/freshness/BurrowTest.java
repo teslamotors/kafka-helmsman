@@ -135,7 +135,6 @@ public class BurrowTest {
 
     Burrow burrow = new Burrow(CONF, client);
     List<String> servers = burrow.getClusterBootstrapServers("cluster_name");
-    assertEquals(2, servers.size());
     assertEquals(expected, servers);
   }
 

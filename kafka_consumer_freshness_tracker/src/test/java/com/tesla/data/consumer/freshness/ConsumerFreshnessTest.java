@@ -295,7 +295,7 @@ public class ConsumerFreshnessTest {
   }
 
   @Test
-  public void testNormalModeConfigurationIsValidServersMatchBurrow() throws Exception {
+  public void testConfigurationIsValidServersMatchBurrow() throws Exception {
     Burrow burrow = mock(Burrow.class);
     String clusterName = "cluster1";
     when(burrow.getClusterBootstrapServers(clusterName))
@@ -310,54 +310,51 @@ public class ConsumerFreshnessTest {
     ConsumerFreshness freshness = new ConsumerFreshness();
     freshness.burrow = burrow;
 
-    Assert.assertEquals(Optional.empty(), freshness.validateClusterConf(conf));
+    // normal mode
+    Assert.assertFalse(freshness.validateClusterConf(conf).isPresent());
+
+    // strict mode
+    freshness.strict = true;
+    Assert.assertFalse(freshness.validateClusterConf(conf).isPresent());
   }
 
   @Test
-  public void testNormalModeConfigurationIsInvalidContainsUnknownServer() throws Exception {
+  public void testConfigurationIsInvalidContainsUnknownServer() throws Exception {
     Burrow burrow = mock(Burrow.class);
     String clusterName = "cluster1";
+    List<String> burrowBootstrapServers = Arrays.asList(
+            "kafka01.example.com:10251", "kafka02.example.com:10251");
     when(burrow.getClusterBootstrapServers(clusterName))
-      .thenReturn(Arrays.asList(
-            "kafka01.example.com:10251", "kafka02.example.com:10251")
-          );
+      .thenReturn(burrowBootstrapServers);
+
+    List<String> confBootstrapServers = Arrays.asList("kafka01.example.com:10251", "kafka02.example.com:10251",
+            "kafka03.example.com:10251");
 
     Map<String, Object> conf = mockConfForCluster(
         clusterName,
-        "kafka01.example.com:10251", "kafka02.example.com:10251", "kafka03.example.com:10251"
+        confBootstrapServers.toArray(new String[0])
         );
 
     ConsumerFreshness freshness = new ConsumerFreshness();
     freshness.burrow = burrow;
 
-    String expected = "bootstrap.servers contains the following servers which Burrow doesn't advertise: " +
-            "kafka03.example.com:10251";
+    String expected = String.format(
+            "the set of bootstrap servers in config is not the same as the " +
+                    "set advertised by Burrow\nconfig: %s\nburrow: %s",
+            String.join(", ", confBootstrapServers),
+            String.join(", ", burrowBootstrapServers)
+    );
 
+    // normal mode
+    Assert.assertEquals(Optional.of(expected), freshness.validateClusterConf(conf));
+
+    // strict mode
+    freshness.strict = true;
     Assert.assertEquals(Optional.of(expected), freshness.validateClusterConf(conf));
   }
 
   @Test
-  public void testStrictModeConfigurationIsValidServersMatchBurrow() throws Exception {
-    Burrow burrow = mock(Burrow.class);
-    String clusterName = "cluster1";
-    when(burrow.getClusterBootstrapServers(clusterName))
-      .thenReturn(Arrays.asList("kafka01.example.com:10251", "kafka02.example.com:10251")
-          );
-
-    Map<String, Object> conf = mockConfForCluster(
-        clusterName,
-            "kafka01.example.com:10251", "kafka02.example.com:10251"
-        );
-
-    ConsumerFreshness freshness = new ConsumerFreshness();
-    freshness.burrow = burrow;
-    freshness.strict = true;
-
-    Assert.assertEquals(Optional.empty(), freshness.validateClusterConf(conf));
-  }
-
-  @Test
-  public void testStrictModeConfigurationIsInvalidMissingServer() throws Exception {
+  public void testConfigurationIsInvalidMissingServer() throws Exception {
     Burrow burrow = mock(Burrow.class);
     String clusterName = "cluster1";
     List<String> burrowBootstrapServers = Arrays.asList("kafka01.example.com:10251", "kafka02.example.com:10251",
@@ -374,16 +371,28 @@ public class ConsumerFreshnessTest {
 
     ConsumerFreshness freshness = new ConsumerFreshness();
     freshness.burrow = burrow;
-    freshness.strict = true;
 
     String expected = String.format(
-            "strict mode on and the set of bootstrap servers in config is not the same as the " +
+            "the set of bootstrap servers in config is not the same as the " +
                     "set advertised by Burrow\nconfig: %s\nburrow: %s",
             String.join(", ", confBootstrapServers),
             String.join(", ", burrowBootstrapServers)
     );
 
+    // normal mode
     Assert.assertEquals(Optional.of(expected), freshness.validateClusterConf(conf));
+
+    // strict mode
+    freshness.strict = true;
+    Assert.assertEquals(Optional.of(expected), freshness.validateClusterConf(conf));
+
+    // RuntimeException should be thrown when attempting to setup Tracker with invalid configuration in strict mode
+    thrown.expect(RuntimeException.class);
+    thrown.expectMessage(expected);
+
+    Map<String, Object> globalConf = new HashMap<>();
+    globalConf.put("clusters", Lists.newArrayList(conf));
+    freshness.setupWithBurrow(globalConf, burrow);
   }
 
   Map<String, Object> mockConfForCluster(String name, String... bootstrapServers) {
