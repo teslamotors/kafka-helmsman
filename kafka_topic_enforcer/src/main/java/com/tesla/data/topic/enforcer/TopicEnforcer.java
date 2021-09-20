@@ -183,7 +183,6 @@ public class TopicEnforcer extends Enforcer<ConfiguredTopic> {
         .labels("unsafe")
         .set(topicsWithConfigDrift(Type.TOPIC_CONFIG, Result.UNSAFE_DRIFT).size());
     replicationFactorDrift
-        .labels("unsupported")
         .set(topicsWithConfigDrift(Type.REPLICATION_FACTOR, Result.UNSUPPORTED_DRIFT).size());
   }
 
