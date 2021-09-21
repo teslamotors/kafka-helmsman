@@ -137,7 +137,7 @@ public class ConsumerFreshness {
                               clusterConf.get("name"), error))
                       .ifPresent(msg -> {
                         if (strict) {
-                          throw new RuntimeException(msg);
+                          throw new IllegalArgumentException(msg);
                         } else {
                           LOG.warn(msg);
                         }
@@ -157,11 +157,7 @@ public class ConsumerFreshness {
   /**
    * Validate an individual cluster's configuration. A cluster's configuration is valid if:
    * a) Looking it up by name in Burrow returns a successful response
-   * b) Bootstrap servers match those in burrow
-   *  i. in strict mode: The bootstrap server list in the config and the list returned from Burrow contain the same set
-   *  of servers
-   *  ii. in normal mode: All entries in the config's bootstrap server list are advertised by Burrow (Burrow could
-   *  have additional entries which don't appear in the config).
+   * b) Bootstrap servers match those in Burrow
    *
    * @param clusterConf the cluster configuration
    * @return a message describing the validation failure, if the config was invalid. Empty otherwise.
