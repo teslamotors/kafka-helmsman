@@ -386,12 +386,13 @@ public class ConsumerFreshnessTest {
     freshness.strict = true;
     Assert.assertEquals(Optional.of(expected), freshness.validateClusterConf(conf));
 
+    Map<String, Object> globalConf = new HashMap<>();
+    globalConf.put("clusters", Lists.newArrayList(conf));
+    
     // RuntimeException should be thrown when attempting to setup Tracker with invalid configuration in strict mode
     thrown.expect(RuntimeException.class);
     thrown.expectMessage(expected);
-
-    Map<String, Object> globalConf = new HashMap<>();
-    globalConf.put("clusters", Lists.newArrayList(conf));
+    
     freshness.setupWithBurrow(globalConf, burrow);
   }
 
