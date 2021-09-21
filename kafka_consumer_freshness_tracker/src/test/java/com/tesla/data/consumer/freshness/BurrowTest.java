@@ -121,6 +121,23 @@ public class BurrowTest {
     burrow.getConsumerGroupStatus("mycluster", "mygroup");
   }
 
+  @Test
+  public void testGetClusterBootstrapServers() throws Exception {
+    OkHttpClient client = Mockito.mock(OkHttpClient.class);
+    List<String> expected = Lists.newArrayList("kafka01.example.com:10251", "kafka02.example.com:10251");
+    Map<String, List<String>> module = new HashMap<>();
+    module.put("servers", expected);
+    Map<String, Object> cluster = new HashMap<>();
+    cluster.put("module",module);
+    Map<String, Object> response = new HashMap<>();
+    response.put("cluster", cluster);
+    when(client.newCall(any())).then(respondWithJson(response));
+
+    Burrow burrow = new Burrow(CONF, client);
+    List<String> servers = burrow.getClusterBootstrapServers("cluster_name");
+    assertEquals(expected, servers);
+  }
+
   private Request expectPath(String path) {
     return argThat(new BaseMatcher<Request>() {
       @Override

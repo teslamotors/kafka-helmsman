@@ -47,7 +47,20 @@ bazel-bin/kafka_consumer_freshness_tracker/src/main/java/com/tesla/data/consumer
 
 Bundled as a jar you can run the Tracker with a configuration file with the `--conf <path to conf>` flag. For local 
 testing, you can also just add the `--once` flag to just run the Tracker once, and then dump the metrics to the console, 
-before stopping.
+before stopping. 
+
+## Validation flags
+
+The cluster configurations are validated before the Tracker is run. The configuration is considered invalid either:
+   * Burrow is unreachable
+   * the cluster is unknown to Burrow
+   * there is an inconsistency between the bootstrap servers advertised by Burrow and those listed in the Tracker 
+configuration. 
+
+The validation failure behaviour depends on if the tracker is run in normal or strict mode.
+In normal mode (this is the default), a warning will be logged.
+In strict mode, the Tracker will crash.
+The Tracker runs in normal mode by default; strict mode can be enabled by supplying the `--strict` flag.
 
 ## Configuration
 
@@ -63,10 +76,10 @@ burrow:
 clusters:
   - name: logs-cluster
     kafka:
-      bootstrap.servers: "l1.example.com:9092, l2.example.com:9092, l3.example.com:9092"
+      bootstrap.servers: "l1.example.com:9092,l2.example.com:9092,l3.example.com:9092"
   - name: metrics-cluster
     kafka:
-      bootstrap.servers: "m1.example.com:9092, m2.example.com:9092, m3.example.com:9092"
+      bootstrap.servers: "m1.example.com:9092,m2.example.com:9092,m3.example.com:9092"
 ```
 
 The Kafka configs are passed directly to the consumer, so you can add any standard

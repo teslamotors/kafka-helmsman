@@ -9,6 +9,7 @@ import static org.apache.kafka.clients.consumer.ConsumerRecord.NULL_CHECKSUM;
 import static org.apache.kafka.clients.consumer.ConsumerRecord.NULL_SIZE;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verifyZeroInteractions;
@@ -21,7 +22,9 @@ import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.common.TopicPartition;
+import org.apache.kafka.common.KafkaException;
 import org.apache.kafka.common.record.TimestampType;
+import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
@@ -33,12 +36,12 @@ import tesla.shade.com.google.common.util.concurrent.MoreExecutors;
 
 import java.io.IOException;
 import java.time.Duration;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 /**
  * Validate that we compute freshness and handle errors as expected. Specifically, for errors, we do the following:
@@ -270,6 +273,137 @@ public class ConsumerFreshnessTest {
         throw new RuntimeException(e);
       }
     });
+  }
+
+  @Test
+  public void testConfigurationContainsUnknownCluster() throws Exception {
+    Burrow burrow = mock(Burrow.class);
+    String clusterName = "bad_cluster";
+    when(burrow.getClusterBootstrapServers(clusterName)).thenThrow(new IOException());
+    Map<String, Object> conf = mockConfForCluster(
+            clusterName, "l1.example.com:9092", "l2.example.com:9092"
+    );
+
+    ConsumerFreshness freshness = new ConsumerFreshness();
+    freshness.burrow = burrow;
+
+    Optional<String> msg = freshness.validateClusterConf(conf);
+    Assert.assertTrue(msg.isPresent());
+    Assert.assertTrue(msg.get().contains("failed to read cluster detail from Burrow: "));
+    Assert.assertEquals(1.0,
+            freshness.getMetricsForTesting().burrowClusterDetailReadFailed.labels(clusterName).get(), 0.0);
+  }
+
+  @Test
+  public void testConfigurationIsValidServersMatchBurrow() throws Exception {
+    Burrow burrow = mock(Burrow.class);
+    String clusterName = "cluster1";
+    when(burrow.getClusterBootstrapServers(clusterName))
+            .thenReturn(Arrays.asList("kafka01.example.com:10251", "kafka02.example.com:10251")
+      );
+
+    Map<String, Object> conf = mockConfForCluster(
+        clusterName,
+        "kafka01.example.com:10251", "kafka02.example.com:10251"
+        );
+
+    ConsumerFreshness freshness = new ConsumerFreshness();
+    freshness.burrow = burrow;
+
+    // normal mode
+    Assert.assertFalse(freshness.validateClusterConf(conf).isPresent());
+
+    // strict mode
+    freshness.strict = true;
+    Assert.assertFalse(freshness.validateClusterConf(conf).isPresent());
+  }
+
+  @Test
+  public void testConfigurationIsInvalidContainsUnknownServer() throws Exception {
+    Burrow burrow = mock(Burrow.class);
+    String clusterName = "cluster1";
+    List<String> burrowBootstrapServers = Arrays.asList(
+            "kafka01.example.com:10251", "kafka02.example.com:10251");
+    when(burrow.getClusterBootstrapServers(clusterName))
+      .thenReturn(burrowBootstrapServers);
+
+    List<String> confBootstrapServers = Arrays.asList("kafka01.example.com:10251", "kafka02.example.com:10251",
+            "kafka03.example.com:10251");
+
+    Map<String, Object> conf = mockConfForCluster(
+        clusterName,
+        confBootstrapServers.toArray(new String[0])
+        );
+
+    ConsumerFreshness freshness = new ConsumerFreshness();
+    freshness.burrow = burrow;
+
+    String expected = String.format(
+            "the set of bootstrap servers in config is not the same as the " +
+                    "set advertised by Burrow\nconfig: %s\nburrow: %s",
+            String.join(", ", confBootstrapServers),
+            String.join(", ", burrowBootstrapServers)
+    );
+
+    // normal mode
+    Assert.assertEquals(Optional.of(expected), freshness.validateClusterConf(conf));
+
+    // strict mode
+    freshness.strict = true;
+    Assert.assertEquals(Optional.of(expected), freshness.validateClusterConf(conf));
+  }
+
+  @Test
+  public void testConfigurationIsInvalidMissingServer() throws Exception {
+    Burrow burrow = mock(Burrow.class);
+    String clusterName = "cluster1";
+    List<String> burrowBootstrapServers = Arrays.asList("kafka01.example.com:10251", "kafka02.example.com:10251",
+            "kafka03.example.com:10251");
+    List<String> confBootstrapServers = Arrays.asList("kafka01.example.com:10251", "kafka02.example.com:10251");
+
+    when(burrow.getClusterBootstrapServers(clusterName))
+      .thenReturn(burrowBootstrapServers);
+
+    Map<String, Object> conf = mockConfForCluster(
+        clusterName,
+            confBootstrapServers.toArray(new String[0])
+        );
+
+    ConsumerFreshness freshness = new ConsumerFreshness();
+    freshness.burrow = burrow;
+
+    String expected = String.format(
+            "the set of bootstrap servers in config is not the same as the " +
+                    "set advertised by Burrow\nconfig: %s\nburrow: %s",
+            String.join(", ", confBootstrapServers),
+            String.join(", ", burrowBootstrapServers)
+    );
+
+    // normal mode
+    Assert.assertEquals(Optional.of(expected), freshness.validateClusterConf(conf));
+
+    // strict mode
+    freshness.strict = true;
+    Assert.assertEquals(Optional.of(expected), freshness.validateClusterConf(conf));
+
+    Map<String, Object> globalConf = new HashMap<>();
+    globalConf.put("clusters", Lists.newArrayList(conf));
+    
+    // RuntimeException should be thrown when attempting to setup Tracker with invalid configuration in strict mode
+    thrown.expect(RuntimeException.class);
+    thrown.expectMessage(expected);
+    
+    freshness.setupWithBurrow(globalConf, burrow);
+  }
+
+  Map<String, Object> mockConfForCluster(String name, String... bootstrapServers) {
+    Map<String, Object> clusterConf = new HashMap<>();
+    Map<String, Object> kafkaConf = new HashMap<>();
+    String bootstrapServersString = String.join(",", bootstrapServers);
+    kafkaConf.put("bootstrap.servers", bootstrapServersString);
+    clusterConf.put("name", name);
+    clusterConf.put("kafka", kafkaConf);
+    return clusterConf;
   }
 
   /**

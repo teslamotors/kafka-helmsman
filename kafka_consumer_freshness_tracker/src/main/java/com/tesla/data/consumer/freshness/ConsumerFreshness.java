@@ -33,14 +33,18 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Arrays;
 import java.util.Map;
+import java.util.Set;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Properties;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.stream.Collectors;
+import java.util.HashSet;
 
 public class ConsumerFreshness {
 
@@ -57,8 +61,12 @@ public class ConsumerFreshness {
   @Parameter(names = "--help", help = true)
   private boolean help = false;
 
+  @Parameter(names = "--strict", description = "Run in strict configuration validation mode")
+  boolean strict = false;
+
   private FreshnessMetrics metrics = new FreshnessMetrics();
-  private Burrow burrow;
+  // exposed for testing
+  Burrow burrow;
   private Map<String, ArrayBlockingQueue<KafkaConsumer>> availableWorkers;
   private ListeningExecutorService executor;
 
@@ -113,20 +121,69 @@ public class ConsumerFreshness {
   }
 
   private void setup(Map<String, Object> conf) {
-    this.burrow = new Burrow((Map<String, Object>) conf.get("burrow"));
+    Burrow burrow = new Burrow((Map<String, Object>) conf.get("burrow"));
+    setupWithBurrow(conf, burrow);
+  }
+
+  @VisibleForTesting
+  void setupWithBurrow(Map<String, Object> conf, Burrow burrow) {
+    this.burrow = burrow;
     int workerThreadCount = (int) conf.getOrDefault("workerThreadCount", DEFAULT_WORKER_THREADS);
     this.availableWorkers = ((List<Map<String, Object>>) conf.get("clusters")).stream()
-        .map(clusterConf -> {
-          // allow each cluster to override the number of workers, if desired
-          int numConsumers = (int) clusterConf.getOrDefault("numConsumers", DEFAULT_KAFKA_CONSUMER_COUNT);
-          ArrayBlockingQueue<KafkaConsumer> queue = new ArrayBlockingQueue<>(numConsumers);
-          for (int i = 0; i < numConsumers; i++) {
-            queue.add(createConsumer(clusterConf));
-          }
-          return new AbstractMap.SimpleEntry<>((String) clusterConf.get("name"), queue);
-        }).collect(Collectors.toMap(AbstractMap.SimpleEntry::getKey, AbstractMap.SimpleEntry::getValue));
+            .map(clusterConf -> {
+              // validate the cluster configuration
+              validateClusterConf(clusterConf)
+                      .map(error -> String.format("configuration for cluster %s is invalid: %s",
+                              clusterConf.get("name"), error))
+                      .ifPresent(msg -> {
+                        if (strict) {
+                          throw new IllegalArgumentException(msg);
+                        } else {
+                          LOG.warn(msg);
+                        }
+                      });
+              // allow each cluster to override the number of workers, if desired
+              int numConsumers = (int) clusterConf.getOrDefault("numConsumers", DEFAULT_KAFKA_CONSUMER_COUNT);
+              ArrayBlockingQueue<KafkaConsumer> queue = new ArrayBlockingQueue<>(numConsumers);
+              for (int i = 0; i < numConsumers; i++) {
+                queue.add(createConsumer(clusterConf));
+              }
+              return new AbstractMap.SimpleEntry<>((String) clusterConf.get("name"), queue);
+            }).collect(Collectors.toMap(AbstractMap.SimpleEntry::getKey, AbstractMap.SimpleEntry::getValue));
 
     this.executor = MoreExecutors.listeningDecorator(Executors.newFixedThreadPool(workerThreadCount));
+  }
+
+  /**
+   * Validate an individual cluster's configuration. A cluster's configuration is valid if:
+   * a) Looking it up by name in Burrow returns a successful response
+   * b) Bootstrap servers match those in Burrow
+   *
+   * @param clusterConf the cluster configuration
+   * @return a message describing the validation failure, if the config was invalid. Empty otherwise.
+   */
+  Optional<String> validateClusterConf(Map<String, Object> clusterConf) {
+    final String clusterName = (String) clusterConf.get("name");
+    final Set<String> bootstrapServersFromBurrow;
+    try {
+      bootstrapServersFromBurrow = new HashSet<>(this.burrow.getClusterBootstrapServers(clusterName));
+    } catch (IOException e) {
+      this.metrics.burrowClusterDetailReadFailed.labels(clusterName).inc();
+      return Optional.of("failed to read cluster detail from Burrow: " + e.getMessage());
+    }
+
+    final Map<String, String> clusterConfKafkaSection = (Map<String, String>) clusterConf.get("kafka");
+    final Set<String> bootstrapServersFromConfig = Arrays
+            .stream(clusterConfKafkaSection.get("bootstrap.servers").split(","))
+            .collect(Collectors.toSet());
+
+    return bootstrapServersFromBurrow.equals(bootstrapServersFromConfig) ? Optional.empty()
+        : Optional.of(String.format(
+                    "the set of bootstrap servers in config is not the same as the " +
+                            "set advertised by Burrow\nconfig: %s\nburrow: %s",
+            bootstrapServersFromConfig.stream().sorted().collect(Collectors.joining(", ")),
+            bootstrapServersFromBurrow.stream().sorted().collect(Collectors.joining(", "))
+            ));
   }
 
   private KafkaConsumer createConsumer(Map<String, Object> conf) {
