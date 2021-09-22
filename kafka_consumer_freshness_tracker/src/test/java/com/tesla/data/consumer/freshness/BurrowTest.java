@@ -128,7 +128,7 @@ public class BurrowTest {
     Map<String, List<String>> module = new HashMap<>();
     module.put("servers", expected);
     Map<String, Object> response = new HashMap<>();
-    response.put("module",module);
+    response.put("module", module);
     when(client.newCall(any())).then(respondWithJson(response));
 
     Burrow burrow = new Burrow(CONF, client);
