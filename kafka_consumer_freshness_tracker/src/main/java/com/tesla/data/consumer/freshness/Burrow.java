@@ -12,6 +12,7 @@ import okhttp3.Response;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import tesla.shade.com.google.common.base.Joiner;
+import tesla.shade.com.google.common.base.Preconditions;
 import tesla.shade.com.google.common.collect.Lists;
 
 import java.io.IOException;
@@ -118,14 +119,15 @@ class Burrow {
 
   public List<String> getClusterBootstrapServers(String cluster) throws IOException {
     final Map<String, Object> response = this.request(cluster);
+
     final Map<String, Object> module = (Map<String, Object>) response.get("module");
-    if (module == null) {
-      throw new IOException("response doesn't contain `module`: Response" + response);
-    }
+    Preconditions.checkArgument(module != null,
+            "response doesn't contain `module`: Response" + response);
+
     List<String> servers = (List<String>) module.get("servers");
-    if (servers == null) {
-      throw new IOException("response doesn't contain `module.servers`: Response" + response);
-    }
+
+    Preconditions.checkArgument(servers != null,
+            "response doesn't contain `module.servers`: Response" + response);
     return servers;
   }
 
