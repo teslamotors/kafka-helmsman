@@ -127,10 +127,8 @@ public class BurrowTest {
     List<String> expected = Lists.newArrayList("kafka01.example.com:10251", "kafka02.example.com:10251");
     Map<String, List<String>> module = new HashMap<>();
     module.put("servers", expected);
-    Map<String, Object> cluster = new HashMap<>();
-    cluster.put("module",module);
     Map<String, Object> response = new HashMap<>();
-    response.put("cluster", cluster);
+    response.put("module",module);
     when(client.newCall(any())).then(respondWithJson(response));
 
     Burrow burrow = new Burrow(CONF, client);
