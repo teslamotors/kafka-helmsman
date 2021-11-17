@@ -98,6 +98,9 @@ dependencies:
     kafka-clients:jar:test:
       lang: java
       version: "2.1.1"
+    kafka_2.12:
+      lang: java
+      version: "2.1.1"
 
   org.bouncycastle:
     bcpkix-jdk15on:
@@ -117,6 +120,11 @@ dependencies:
       lang: java
       modules: [ "all", "core" ]
       version: "1.10.19"
+
+  org.scala-lang:
+    scala-library:
+      lang: java
+      version: "2.12.8"
 
   org.slf4j:
     slf4j-api:
