@@ -11,6 +11,7 @@ import com.tesla.data.enforcer.Enforcer;
 import com.beust.jcommander.JCommander;
 import com.beust.jcommander.Parameter;
 import org.apache.kafka.clients.admin.AdminClient;
+import org.apache.kafka.clients.admin.KafkaAdminClient;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -19,12 +20,22 @@ import java.util.Map;
 public class Main {
 
   private static class TopicEnforceCommand extends EnforceCommand<ConfiguredTopic> {
+    private AdminClient adminClient;
+
     @Override
-    protected Enforcer<ConfiguredTopic> initEnforcer(AdminClient adminClient) {
+    protected Enforcer<ConfiguredTopic> initEnforcer() {
+      this.adminClient = KafkaAdminClient.create(kafkaConfig());
       return new TopicEnforcer(
           new TopicServiceImpl(adminClient, dryrun),
           configuredEntities(ConfiguredTopic.class, "topics", "topicsFile"),
           !unsafemode);
+    }
+
+    @Override
+    public void close() {
+      if (this.adminClient != null) {
+        this.adminClient.close();
+      }
     }
   }
 
