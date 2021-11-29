@@ -31,4 +31,5 @@ public class DummyEnforcer extends Enforcer<Dummy> {
   protected void delete(List<Dummy> toDelete) {
     // no-op
   }
+
 }

@@ -12,8 +12,6 @@ import com.beust.jcommander.Parameters;
 import io.prometheus.client.Counter;
 import io.prometheus.client.Gauge;
 import io.prometheus.client.exporter.HTTPServer;
-import org.apache.kafka.clients.admin.AdminClient;
-import org.apache.kafka.clients.admin.KafkaAdminClient;
 
 import java.io.IOException;
 import java.util.Map;
@@ -60,7 +58,7 @@ public class EnforceCommand<T> extends BaseCommand<T> {
   }
 
   // This constructor is only meant for testing. In a non-testing/real scenario, the subclass must override
-  // initEnforcer and initialize the enforcer.
+  // initEnforcer and initialize the enforcer, as well as override the close() method to close all resources.
   EnforceCommand(Enforcer<T> enforcer, Map<String, Object> cmdConfig, boolean continuous, int interval) {
     super(cmdConfig);
     this.enforcer = enforcer;
@@ -69,23 +67,31 @@ public class EnforceCommand<T> extends BaseCommand<T> {
   }
 
   /**
-   * Initialize the enforcer. Base classes must override this method.
-   *
-   * @param adminClient a kafka admin client
+   * Initialize the enforcer with the necessary admin client(s). Base classes must override this method.
+   * Note: This method must be called at most one time.
    * @return an enforcer instance
    */
-  protected Enforcer<T> initEnforcer(AdminClient adminClient) {
+  protected Enforcer<T> initEnforcer() {
     return checkNotNull(enforcer, "Enforcer is expected to be initialized when command instance is created " +
         "for a test.");
   }
 
+  /**
+   * Close any resources that have been opened. Base classes must override this method.
+   */
+  protected void close() {
+    // no-op
+  }
+
   @Override
   public int run() {
-    try (AdminClient kafka = KafkaAdminClient.create(kafkaConfig())) {
+    try {
       checkState(enforcer == null, "Enforcer is expected to be un-initialized when command " +
           "instance is created by CLI");
-      this.enforcer = initEnforcer(kafka);
+      this.enforcer = initEnforcer();
       return doRun(() -> false);
+    } finally {
+      close();
     }
   }
 

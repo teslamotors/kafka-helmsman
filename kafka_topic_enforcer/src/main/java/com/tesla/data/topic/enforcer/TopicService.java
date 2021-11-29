@@ -51,4 +51,5 @@ public interface TopicService {
    * @param topics a collection of topics
    */
   void delete(List<ConfiguredTopic> topics);
+
 }

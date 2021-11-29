@@ -45,7 +45,7 @@ public class BaseCommandTest {
   }
 
   @Test
-  public void tesConverter() throws IOException {
+  public void testConverter() throws IOException {
     Map<String, Object> config = converter.convert(confStream(testConf));
     Assert.assertTrue(config.containsKey("kafka"));
     Assert.assertTrue(config.containsKey("dummies"));

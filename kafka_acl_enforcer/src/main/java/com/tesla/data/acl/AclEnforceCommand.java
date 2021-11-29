@@ -9,11 +9,13 @@ import com.tesla.data.enforcer.EnforceCommand;
 import com.tesla.data.enforcer.Enforcer;
 
 import org.apache.kafka.clients.admin.AdminClient;
+import org.apache.kafka.clients.admin.KafkaAdminClient;
 import org.apache.kafka.common.acl.AclBinding;
 
 import java.util.Map;
 
 public class AclEnforceCommand extends EnforceCommand<AclBinding> {
+  private AdminClient adminClient;
   static {
     Json.addMixIns(MAPPER);
   }
@@ -32,9 +34,16 @@ public class AclEnforceCommand extends EnforceCommand<AclBinding> {
   }
 
   @Override
-  protected Enforcer<AclBinding> initEnforcer(AdminClient client) {
+  protected Enforcer<AclBinding> initEnforcer() {
+    this.adminClient = KafkaAdminClient.create(kafkaConfig());
     return new AclEnforcer(configuredEntities(AclBinding.class, "acls", "aclsFile"),
-        new AclService(client), !unsafemode, dryrun);
+        new AclService(adminClient), !unsafemode, dryrun);
+  }
+
+  @Override
+  protected void close() {
+    if (this.adminClient != null) {
+      this.adminClient.close();
+    }
   }
 }
-
