@@ -16,6 +16,7 @@ import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.module.paramnames.ParameterNamesModule;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import tesla.shade.com.google.common.base.Preconditions;
 import tesla.shade.com.google.common.io.Resources;
 
 import java.io.FileInputStream;
@@ -81,6 +82,10 @@ public class BaseCommand<T> {
     return MAPPER.convertValue(cmdConfig().get("kafka"), MAP_TYPE);
   }
 
+  public Map<String, Object> zookeeperConfig() {
+    return MAPPER.convertValue(cmdConfig().get("zookeeper"), MAP_TYPE);
+  }
+
   public List<T> configuredEntities(Class<T> toValueType, String entitiesKey, String entitiesFileKey) {
     LOG.info("Config contains, {}: {}, {}: {}",
         entitiesKey, cmdConfig.containsKey(entitiesKey), entitiesFileKey, cmdConfig.containsKey(entitiesFileKey));
@@ -141,8 +146,19 @@ public class BaseCommand<T> {
   }
 
   public int run() {
-    System.out.println("Kafka connection: " + kafkaConfig().get("bootstrap.servers"));
-    System.out.println("Config looks good!");
+    // check Kafka configuration
+    if (cmdConfig().containsKey("kafka")) {
+      System.out.println("Kafka connection: " + kafkaConfig().get("bootstrap.servers"));
+      System.out.println("Kafka config looks good!");
+    }
+
+    // check Zookeeper configuration
+    if (cmdConfig().containsKey("zookeeper")) {
+      for (String key : zookeeperConfig().keySet()) {
+        System.out.println(format("Zookeeper %s: %s", key, zookeeperConfig().get(key)));
+      }
+      System.out.println("Zookeeper config looks good!");
+    }
     return SUCCESS;
   }
 
@@ -161,7 +177,8 @@ public class BaseCommand<T> {
 
     public Map<String, Object> convert(InputStream is) throws IOException {
       Map<String, Object> cmdConfig = MAPPER.readValue(is, MAP_TYPE);
-      Objects.requireNonNull(cmdConfig.get("kafka"), "Missing kafka connection settings from config");
+      Preconditions.checkArgument(cmdConfig.containsKey("kafka") || cmdConfig.containsKey("zookeeper"),
+          "Missing kafka or zookeeper connection settings from config.");
       return cmdConfig;
     }
   }

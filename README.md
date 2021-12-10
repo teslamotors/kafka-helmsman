@@ -12,6 +12,7 @@ The tools are
 * [**Kafka consumer freshness tracker**](kafka_consumer_freshness_tracker/README.md)
 * [**Kafka topic enforcer**](kafka_topic_enforcer/README.md)
 * [**Kafka roller**](kafka_roller/README.md)
+* [**Kafka quota enforcer**](kafka_quota_enforcer/README.md)
 
 Follow the links for more detail.
 
