@@ -51,7 +51,7 @@ public class QuotaServiceTest {
     existingUserClientQuotas.put("someUser/clients/someClient", new Properties());
 
     when(adminClient.fetchAllChildEntityConfigs(ConfigType.User(), ConfigType.Client()))
-        .thenReturn(JavaConverters.mapAsScalaMap(existingUserClientQuotas));
+        .thenReturn(JavaConverters.mapAsScalaMapConverter(existingUserClientQuotas).asScala());
 
     // user
     Map<String, Properties> existingUserQuotas = new HashMap<>();
@@ -73,7 +73,7 @@ public class QuotaServiceTest {
     existingUserQuotas.put("someUser", new Properties());
 
     when(adminClient.fetchAllEntityConfigs(ConfigType.User()))
-        .thenReturn(JavaConverters.mapAsScalaMap(existingUserQuotas));
+        .thenReturn(JavaConverters.mapAsScalaMapConverter(existingUserQuotas).asScala());
 
     // client
     Map<String, Properties> existingClientQuotas = new HashMap<>();
@@ -90,7 +90,7 @@ public class QuotaServiceTest {
     existingUserQuotas.put("someClient", new Properties());
 
     when(adminClient.fetchAllEntityConfigs(ConfigType.Client()))
-        .thenReturn(JavaConverters.mapAsScalaMap(existingClientQuotas));
+        .thenReturn(JavaConverters.mapAsScalaMapConverter(existingClientQuotas).asScala());
 
     List<ConfiguredQuota> expected = new ArrayList<>();
     expected.add(new ConfiguredQuota("user1", "client1", 100, null, null));

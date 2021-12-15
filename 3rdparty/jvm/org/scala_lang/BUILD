@@ -1,22 +1,19 @@
-java_library(
+scala_library(
     name = "scala_library",
     visibility = [
         "//visibility:public",
     ],
     exports = [
-        "//external:jar/org/scala_lang/scala_library",
+        "@io_bazel_rules_scala_scala_library",
     ],
 )
 
-java_library(
+scala_library(
     name = "scala_reflect",
     visibility = [
-        "//3rdparty/jvm:__subpackages__",
+        "//visibility:public",
     ],
     exports = [
-        "//external:jar/org/scala_lang/scala_reflect",
-    ],
-    runtime_deps = [
-        ":scala_library",
+        "@io_bazel_rules_scala_scala_reflect",
     ],
 )

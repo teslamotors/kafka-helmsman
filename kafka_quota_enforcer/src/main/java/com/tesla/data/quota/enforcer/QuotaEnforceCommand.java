@@ -36,7 +36,8 @@ public class QuotaEnforceCommand extends EnforceCommand<ConfiguredQuota> {
         Integer.MAX_VALUE,
         Time.SYSTEM,
         ZK_METRIC_GROUP,
-        ZK_METRIC_TYPE
+        ZK_METRIC_TYPE,
+        scala.Option.empty()
     );
     AdminZkClient adminClient = new AdminZkClient(zkClient);
     return new QuotaEnforcer(configuredEntities(ConfiguredQuota.class, "quotas", "quotasFile"),

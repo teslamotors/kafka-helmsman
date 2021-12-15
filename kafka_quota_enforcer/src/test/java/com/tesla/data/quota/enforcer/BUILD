@@ -4,8 +4,8 @@ java_test(
         "QuotaServiceTest.java",
     ],
     deps = [
+        "//3rdparty/jvm/org/apache/kafka",
         "//3rdparty/jvm/org/mockito:mockito_core",
-        "//3rdparty/jvm/org/apache/kafka:kafka_2_12",
         "//3rdparty/jvm/org/scala_lang:scala_library",
         "//kafka_quota_enforcer/src/main/java/com/tesla/data/quota/enforcer",
     ],

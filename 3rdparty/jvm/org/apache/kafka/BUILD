@@ -1,21 +1,26 @@
-java_library(
-    name = "kafka_2_12",
+scala_import(
+    name = "kafka",
+    jars = [
+        "//external:jar/org/apache/kafka/kafka_2_11",
+    ],
     visibility = [
         "//visibility:public",
     ],
-    exports = [
-        "//external:jar/org/apache/kafka/kafka_2_12",
-    ],
     runtime_deps = [
         ":kafka_clients",
-        "//3rdparty/jvm/com/101tec:zkclient",
         "//3rdparty/jvm/com/fasterxml/jackson/core:jackson_databind",
-        "//3rdparty/jvm/com/typesafe/scala_logging:scala_logging_2_12",
+        "//3rdparty/jvm/com/fasterxml/jackson/dataformat:jackson_dataformat_csv",
+        "//3rdparty/jvm/com/fasterxml/jackson/datatype:jackson_datatype_jdk8",
+        "//3rdparty/jvm/com/fasterxml/jackson/module:jackson_module_scala",
+        "//3rdparty/jvm/com/typesafe/scala_logging",
         "//3rdparty/jvm/com/yammer/metrics:metrics_core",
+        "//3rdparty/jvm/commons_cli",
         "//3rdparty/jvm/net/sf/jopt_simple",
         "//3rdparty/jvm/org/apache/zookeeper",
         "//3rdparty/jvm/org/scala_lang:scala_library",
         "//3rdparty/jvm/org/scala_lang:scala_reflect",
+        "//3rdparty/jvm/org/scala_lang/modules:scala_collection_compat_2_11",
+        "//3rdparty/jvm/org/scala_lang/modules:scala_java8_compat",
         "//3rdparty/jvm/org/slf4j:slf4j_api",
     ],
 )
