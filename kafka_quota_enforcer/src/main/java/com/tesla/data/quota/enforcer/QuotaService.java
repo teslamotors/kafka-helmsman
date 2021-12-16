@@ -42,24 +42,24 @@ public class QuotaService {
    */
   public Collection<ConfiguredQuota> listExisting() {
     // Get all existing quotas that are applied to users AND clients, for ex: principal=<default>, client=clientA
-    Map<String, Properties> existingQuotasUserClient =
-        JavaConverters.mapAsJavaMap(adminClient.fetchAllChildEntityConfigs(ConfigType.User(), ConfigType.Client()));
+    Map<String, Properties> existingQuotasUserClient = JavaConverters.mapAsJavaMapConverter(
+        adminClient.fetchAllChildEntityConfigs(ConfigType.User(), ConfigType.Client())).asJava();
     Set<ConfiguredQuota> existing = existingQuotasUserClient.entrySet().stream()
         .filter(e -> !e.getValue().isEmpty())
         .map(e -> configuredQuota(e, EntityType.PRINCIPAL_AND_CLIENT))
         .collect(Collectors.toSet());
 
     // Get all existing quotas that are applied ONLY to users, for ex: principal=user1
-    Map<String, Properties> existingQuotasUser =
-        JavaConverters.mapAsJavaMap(adminClient.fetchAllEntityConfigs(ConfigType.User()));
+    Map<String, Properties> existingQuotasUser = JavaConverters.mapAsJavaMapConverter(
+        adminClient.fetchAllEntityConfigs(ConfigType.User())).asJava();
     existing.addAll(existingQuotasUser.entrySet().stream()
         .filter(e -> !e.getValue().isEmpty())
         .map(e -> configuredQuota(e, EntityType.PRINCIPAL))
         .collect(Collectors.toSet()));
 
     // Get all existing quotas that are applied ONLY to clients, for ex: client=<default>
-    Map<String, Properties> existingQuotasClient =
-        JavaConverters.mapAsJavaMap(adminClient.fetchAllEntityConfigs(ConfigType.Client()));
+    Map<String, Properties> existingQuotasClient = JavaConverters.mapAsJavaMapConverter(
+        adminClient.fetchAllEntityConfigs(ConfigType.Client())).asJava();
     existing.addAll(existingQuotasClient.entrySet().stream()
         .filter(e -> !e.getValue().isEmpty())
         .map(e -> configuredQuota(e, EntityType.CLIENT))

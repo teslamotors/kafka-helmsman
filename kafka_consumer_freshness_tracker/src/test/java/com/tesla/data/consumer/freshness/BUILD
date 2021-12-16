@@ -31,8 +31,8 @@ java_test(
     ],
     deps = [
         "//3rdparty/jvm/ch/qos/logback:logback_classic",
-        "//3rdparty/jvm/io/prometheus:simpleclient",
         "//3rdparty/jvm/com/fasterxml/jackson/core:jackson_core",
+        "//3rdparty/jvm/io/prometheus:simpleclient",
         "//3rdparty/jvm/junit",
         "//3rdparty/jvm/org/apache/kafka:kafka_clients",
         "//3rdparty/jvm/org/mockito:mockito_all",

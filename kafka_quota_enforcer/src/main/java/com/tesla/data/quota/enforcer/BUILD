@@ -6,7 +6,7 @@ java_library(
     deps = [
         "//3rdparty/jvm/com/beust:jcommander",
         "//3rdparty/jvm/com/fasterxml/jackson/core:jackson_annotations",
-        "//3rdparty/jvm/org/apache/kafka:kafka_2_12",
+        "//3rdparty/jvm/org/apache/kafka",
         "//3rdparty/jvm/org/apache/kafka:kafka_clients",
         "//3rdparty/jvm/org/scala_lang:scala_library",
         "//3rdparty/jvm_shaded/com/google/guava_shaded",

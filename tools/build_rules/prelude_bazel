@@ -1,0 +1,12 @@
+# Rules and loaded here are preluded, as explained here: https://skydoc.bazel.build/docs/getting_started.html
+# This content of this file is prepended to each BUILD file in this project.
+
+load(
+    "@io_bazel_rules_scala//scala:scala.bzl",
+    "scala_library",
+)
+
+load(
+    "@io_bazel_rules_scala//scala:scala_import.bzl",
+    "scala_import"
+)
