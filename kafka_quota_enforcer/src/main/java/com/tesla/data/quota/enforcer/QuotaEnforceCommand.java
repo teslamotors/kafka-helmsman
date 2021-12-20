@@ -25,6 +25,12 @@ public class QuotaEnforceCommand extends EnforceCommand<ConfiguredQuota> {
     // DO NOT REMOVE, this is needed by jcommander
   }
 
+  // for testing
+  public QuotaEnforceCommand(Map<String, Object> cmdConfig, String cluster) {
+    this.cmdConfig = cmdConfig;
+    this.cluster = cluster;
+  }
+
   @Override
   protected Enforcer<ConfiguredQuota> initEnforcer() {
     Map<String, Object> zkConfig = zookeeperConfig();
