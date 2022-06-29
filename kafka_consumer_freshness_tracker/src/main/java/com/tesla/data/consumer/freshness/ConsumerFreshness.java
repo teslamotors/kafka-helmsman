@@ -40,6 +40,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Properties;
 import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.Callable;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.RejectedExecutionException;
@@ -253,7 +254,7 @@ public class ConsumerFreshness {
    * @throws RuntimeException if there is a systemic problem that should shutdown the application.
    */
   private ListenableFuture<String> measureCluster(Burrow.ClusterClient client) {
-    List<ListenableFuture<List<Object>>> completedConsumers = new ArrayList<>();
+    List<ListenableFuture<List<PartitionResult>>> completedConsumers = new ArrayList<>();
     List<String> consumerGroups;
     try {
       consumerGroups = client.consumerGroups();
@@ -265,8 +266,9 @@ public class ConsumerFreshness {
       return Futures.immediateFailedFuture(e);
     }
 
+    String cluster = client.getCluster();
     try {
-      ArrayBlockingQueue<KafkaConsumer> workers = this.availableWorkers.get(client.getCluster());
+      ArrayBlockingQueue<KafkaConsumer> workers = this.availableWorkers.get(cluster);
       for (String consumerGroup : consumerGroups) {
         completedConsumers.add(measureConsumer(client, workers, consumerGroup));
       }
@@ -278,10 +280,40 @@ public class ConsumerFreshness {
       throw e;
     }
 
-    // if all the consumer measurements succeed, then we return the cluster name
+    // if at least one consumer measurement succeeds, then we return the cluster name
     // otherwise, Future.get will throw an exception representing the failure to measure a consumer (and thus the
     // failure to successfully monitor the cluster).
-    return Futures.whenAllSucceed(completedConsumers).call(client::getCluster, this.executor);
+    return Futures.whenAllSucceed(completedConsumers).call(() -> {
+      List<PartitionResult> allPartitions = completedConsumers.stream()
+          .flatMap(f -> {
+            // recall, these have all completed successfully by this point, unless it's something catastrophic, so
+            // this is safe to just re-throw if we do find an exception
+            try {
+              return f.get().stream();
+            } catch (Exception e) {
+              throw new RuntimeException(e);
+            }
+          }).collect(Collectors.toList());
+
+          long successes = allPartitions.stream()
+          .filter(result -> result.success)
+          .count();
+
+      // if any single partition for any single consumer succeeded, then we count the cluster as having been successful
+      if (successes != allPartitions.size()) {
+        LOG.info("Freshness for {}  / {} partitions across all consumers succeeded for cluster {}",
+            successes, allPartitions.size(), cluster);
+      }
+
+      if (successes > 0) {
+        LOG.info("Got freshness for at least one partition for one consumer partition for {} marking the cluster " +
+            "successful", cluster);
+        return cluster;
+      }
+
+      throw new RuntimeException("No single partition for any topic for any consumer for cluster {}" + cluster +
+          " returned successfully - is the cluster configured correctly?");
+    }, this.executor);
   }
 
   /**
@@ -299,7 +331,7 @@ public class ConsumerFreshness {
    * failed to be measured the entire future (i.e. calls to {@link Future#get()}) will be considered a failure.
    * @throws InterruptedException if the application is interrupted while waiting for an available worker
    */
-  private ListenableFuture<List<Object>> measureConsumer(Burrow.ClusterClient burrow,
+  private ListenableFuture<List<PartitionResult>> measureConsumer(Burrow.ClusterClient burrow,
                                                          ArrayBlockingQueue<KafkaConsumer> workers,
                                                          String consumerGroup) throws InterruptedException {
     Map<String, Object> status;
@@ -316,7 +348,7 @@ public class ConsumerFreshness {
 
     boolean anyEndOffsetFound = false;
     List<Map<String, Object>> partitions = (List<Map<String, Object>>) status.get("partitions");
-    List<ListenableFuture<?>> partitionFreshnessComputation = new ArrayList<>(partitions.size());
+    List<ListenableFuture<PartitionResult>> partitionFreshnessComputation = new ArrayList<>(partitions.size());
     for (Map<String, Object> state : partitions) {
       String topic = (String) state.get("topic");
       int partition = (int) state.get("partition");
@@ -336,7 +368,22 @@ public class ConsumerFreshness {
 
       // wait for a consumer to become available
       KafkaConsumer consumer = workers.take();
-      ListenableFuture<?> result = this.executor.submit(new FreshnessTracker(consumerState, consumer, metrics));
+      ListenableFuture<PartitionResult> result = this.executor.submit(new Callable<PartitionResult>() {
+        FreshnessTracker tracker = new FreshnessTracker(consumerState, consumer, metrics);
+
+        @Override
+        public PartitionResult call() {
+          try {
+            tracker.run();
+            return new PartitionResult(consumerState);
+          } catch (Exception e) {
+            // intentionally at debug - there are many reasons for failures and often many partitions will fail for
+            // one reason or another, which can clog the logs.
+            LOG.debug("Failed to evaluate freshness for {}", consumerState, e);
+            return new PartitionResult(consumerState, e);
+          }
+        }
+      });
       // Hand back the consumer to the available workers when the task is complete
       Futures.addCallback(result, new FutureCallback<Object>() {
         @Override
@@ -367,14 +414,31 @@ public class ConsumerFreshness {
           .map(partition -> {
             try {
               return partition.get();
-            } catch (Exception e) {
-              // skip it!
-              return null;
+            } catch (Exception e){
+              // only can happen if we are interrupted, or something catastrophic, which both fit our criteria for
+              // failing the consumer
+              throw new RuntimeException(e);
             }
           })
-          .filter(Objects::isNull)
           .collect(Collectors.toList());
     }, this.executor);
+  }
+
+  class PartitionResult {
+    FreshnessTracker.ConsumerOffset consumerOffset;
+    boolean success;
+    Optional<Throwable> errorCause;
+
+
+    public PartitionResult(FreshnessTracker.ConsumerOffset consumerOffset) {
+      this(consumerOffset, null);
+    }
+
+    public PartitionResult(FreshnessTracker.ConsumerOffset consumerOffset, Throwable errorCause) {
+      this.consumerOffset = consumerOffset;
+      this.errorCause = Optional.ofNullable(errorCause);
+      this.success = !this.errorCause.isPresent();
+    }
   }
 
   private void stop() {

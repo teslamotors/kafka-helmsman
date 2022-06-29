@@ -38,6 +38,7 @@ import java.io.IOException;
 import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.Callable;
 import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.function.Consumer;
@@ -105,9 +106,9 @@ public class ConsumerFreshnessTest {
       freshness.run();
 
       FreshnessMetrics metrics = freshness.getMetricsForTesting();
-
+      assertSuccessfulClusterMeasurement(freshness, "cluster1");
       Gauge.Child measurement = metrics.freshness.labels("cluster1", "group1", "topic1", "1");
-      assertTrue("Should have at least the specified lag for the group "+lagMs+", but found"+measurement.get(),
+      assertTrue("Should have at least the specified lag for the group " + lagMs + ", but found" + measurement.get(),
           measurement.get() >= lagMs);
     });
   }
@@ -146,12 +147,17 @@ public class ConsumerFreshnessTest {
   public void testFailConsumerButNotClusterIfComputationFails() throws Exception {
     Burrow burrow = mock(Burrow.class);
     Burrow.ClusterClient client = mockClusterState("cluster1", "group1",
-        partitionState("topic1", 1, 10, 10L));
+        partitionState("topic1", 0, 10, 10L),
+        partitionState("topic1", 1, 10, 10L)
+    );
     when(burrow.getClusters()).thenReturn(newArrayList(client));
 
     withExecutor(executor -> {
       KafkaConsumer consumer = mock(KafkaConsumer.class);
-      when(consumer.poll(Mockito.any(Duration.class))).thenThrow(new RuntimeException("injected"));
+      // first consumer lookup fails, the second one success
+      when(consumer.poll(Mockito.any(Duration.class)))
+          .thenThrow(new RuntimeException("injected"))
+          .thenReturn(records("topic", 1, 10, 10L));
 
       ConsumerFreshness freshness = new ConsumerFreshness();
       freshness.setupForTesting(burrow, workers("cluster1", consumer), executor);
@@ -219,7 +225,7 @@ public class ConsumerFreshnessTest {
         freshness.run();
         assertEquals(1.0, freshness.getMetricsForTesting().error.labels("cluster", "group").get(), 0.0);
         // failing all the groups status lookup should not fail the cluster. Feels weird, but it's the current behavior
-        assertSuccessfulClusterMeasurement(freshness, "cluster");
+        assertNoSuccessfulClusterMeasurement(freshness, "cluster");
       } catch (Exception e) {
         throw new RuntimeException(e);
       }
@@ -240,8 +246,8 @@ public class ConsumerFreshnessTest {
         when(client.getConsumerGroupStatus("group")).thenReturn(new HashMap<>());
         freshness.run();
         assertEquals(1.0, freshness.getMetricsForTesting().error.labels("cluster", "group").get(), 0.0);
-        // the cluster is overall successful, even though the group fails
-        assertSuccessfulClusterMeasurement(freshness, "cluster");
+        // no consumer group was successful, cluster is not successful
+        assertNoSuccessfulClusterMeasurement(freshness, "cluster");
       } catch (Exception e) {
         throw new RuntimeException(e);
       }
@@ -267,8 +273,8 @@ public class ConsumerFreshnessTest {
             )));
         freshness.run();
         assertEquals(1.0, freshness.getMetricsForTesting().missing.get(), 0.0);
-        // the cluster is overall successful, even though the group fails
-        assertSuccessfulClusterMeasurement(freshness, "cluster");
+        // no consumer group was successful, cluster is not successful
+        assertNoSuccessfulClusterMeasurement(freshness, "cluster");
       } catch (Exception e) {
         throw new RuntimeException(e);
       }
@@ -420,7 +426,7 @@ public class ConsumerFreshnessTest {
     Burrow.ClusterClient client = mockClusterState("cluster", "group", partitionState("t", 1, 1, 0));
     when(burrow.getClusters()).thenReturn(newArrayList(client));
     Exception cause = new RejectedExecutionException("injected");
-    when(executor.submit(any(FreshnessTracker.class))).thenThrow(cause);
+    when(executor.submit(any(Callable.class))).thenThrow(cause);
 
     thrown.expect(RuntimeException.class);
     thrown.expectCause(org.hamcrest.CoreMatchers.equalTo(cause));
