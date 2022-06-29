@@ -383,6 +383,7 @@ public class ConsumerFreshness {
         @Override
         public PartitionResult call() {
           try {
+            LOG.debug("Calculating freshness for {}", consumerState);
             tracker.run();
             return new PartitionResult(consumerState);
           } catch (Exception e) {

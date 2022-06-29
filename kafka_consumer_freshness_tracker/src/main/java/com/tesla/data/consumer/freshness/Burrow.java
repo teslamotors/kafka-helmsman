@@ -82,7 +82,7 @@ class Burrow {
   private Map<String, Object> request(String... paths) throws IOException {
     Response response = null;
     HttpUrl url = address(paths);
-    LOG.debug("GET {}", url);
+    LOG.trace("GET {}", url);
     Request request = new Request.Builder()
         .url(url)
         .get().build();

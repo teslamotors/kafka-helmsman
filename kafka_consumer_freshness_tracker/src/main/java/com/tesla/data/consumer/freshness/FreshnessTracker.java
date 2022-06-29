@@ -70,6 +70,12 @@ class FreshnessTracker implements Runnable {
       }
       Instant now = Instant.now(clock);
       freshness = Math.max(now.toEpochMilli() - record.timestamp(), 0);
+      LOG.debug("Found freshness of {} from first uncommitted record {} for {}", freshness, record, consumer);
+    } else {
+      // up-to-date consumers are at the LEO (i.e. lag == 0), so we don't have a 'first uncommitted record' that
+      // would be interesting to log, so just log the freshness == 0. Its in an 'else' to avoid too double logging
+      // for consumers that are not up-to-date.
+      LOG.debug("{} recording {} ms freshness", consumer, freshness);
     }
     metrics.freshness.labels(this.consumer.cluster, this.consumer.group, this.from.topic(),
         Integer.toString(this.from.partition()))
