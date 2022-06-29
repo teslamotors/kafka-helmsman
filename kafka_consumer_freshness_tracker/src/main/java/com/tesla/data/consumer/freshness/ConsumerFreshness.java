@@ -339,8 +339,17 @@ public class ConsumerFreshness {
       status = burrow.getConsumerGroupStatus(consumerGroup);
       Preconditions.checkState(status.get("partitions") != null,
           "Burrow response is missing partitions, got {}", status);
+    } catch (Burrow.UnsuccessfulResponseException e) {
+      // Sometimes the consumer is missing (e.g. due to include/exclude rules in burrow), which can clog the logs and
+      // make it hard to see actual problems. In that case, we just log the message, rather than the full stack trace.
+      if (e.response.code() == 404) {
+        LOG.error("Failed to read Burrow status for consumer {}. Skipping\n{}", consumerGroup, e.getMessage());
+      } else {
+        LOG.error("Failed to read Burrow status for consumer {}. Skipping", consumerGroup, e);
+      }
+      metrics.error.labels(burrow.getCluster(), consumerGroup).inc();
+      return Futures.immediateFuture(Collections.emptyList());
     } catch (IOException | IllegalStateException e) {
-      // this happens sometimes, when burrow is acting up (e.g. "bad" consumer names)
       LOG.error("Failed to read Burrow status for consumer {}. Skipping", consumerGroup, e);
       metrics.error.labels(burrow.getCluster(), consumerGroup).inc();
       return Futures.immediateFuture(Collections.emptyList());
