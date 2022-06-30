@@ -82,7 +82,7 @@ class Burrow {
   private Map<String, Object> request(String... paths) throws IOException {
     Response response = null;
     HttpUrl url = address(paths);
-    LOG.debug("GET {}", url);
+    LOG.trace("GET {}", url);
     Request request = new Request.Builder()
         .url(url)
         .get().build();
@@ -92,7 +92,7 @@ class Burrow {
       // burrow will build a valid map with the body for invalid responses (i.e. consumer group not found), so we
       // need to check that the response was failure.
       if (!response.isSuccessful()) {
-        throw new IOException("Response was not successful: " + response);
+        throw new UnsuccessfulResponseException(response);
       }
       return MAPPER.readValue(response.body().byteStream(), Map.class);
     } catch (IOException e) {
@@ -146,6 +146,18 @@ class Burrow {
 
     public String getCluster() {
       return cluster;
+    }
+  }
+
+  /**
+   * Exception when the request returned unsuccessfully.
+   */
+  public class UnsuccessfulResponseException extends IOException {
+    public final Response response;
+
+    public UnsuccessfulResponseException(Response response) {
+      super("Response was not successful: " + response);
+      this.response = response;
     }
   }
 }
