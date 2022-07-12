@@ -95,6 +95,9 @@ class Burrow {
         throw new UnsuccessfulResponseException(response);
       }
       return MAPPER.readValue(response.body().byteStream(), Map.class);
+    } catch (UnsuccessfulResponseException e){
+      // we generated this exception ourselves, don't need to log it like "real" IOExceptions
+      throw e;
     } catch (IOException e) {
       // ensure to log the response (which includes the request) for debugging purposes, its not usually going to be
       // included in the error message
