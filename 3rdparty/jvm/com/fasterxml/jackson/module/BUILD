@@ -29,7 +29,7 @@ java_library(
 scala_import(
     name = "jackson_module_scala",
     jars = [
-        "//external:jar/com/fasterxml/jackson/module/jackson_module_scala_2_11",
+        "//external:jar/com/fasterxml/jackson/module/jackson_module_scala_2_12",
     ],
     visibility = [
         "//visibility:public",

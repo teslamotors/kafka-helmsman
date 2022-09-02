@@ -1,7 +1,7 @@
 scala_import(
     name = "scala_logging",
     jars = [
-        "//external:jar/com/typesafe/scala_logging/scala_logging_2_11",
+        "//external:jar/com/typesafe/scala_logging/scala_logging_2_12",
     ],
     visibility = [
         "//3rdparty/jvm:__subpackages__",

@@ -1,5 +1,5 @@
 options:
-  languages: [ "java", "scala:2.11.12" ]
+  languages: [ "java", "scala:2.12.16" ]
   resolvers:
     - id: "mavencentral"
       type: "default"
@@ -134,7 +134,7 @@ dependencies:
   org.scala-lang:
     scala-library:
       lang: java
-      version: "2.11.7"
+      version: "2.12.16"
 
   org.scala-lang.modules:
     scala-java8-compat:
