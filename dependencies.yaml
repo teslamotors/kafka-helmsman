@@ -99,18 +99,18 @@ dependencies:
       exclude:
         - "org.slf4j:slf4j-log4j12"
       lang: java
-      version: "3.4.13"
+      version: "3.5.10"
 
   org.apache.kafka:
     kafka:
       lang: scala
-      version: "2.4.1"
+      version: "2.8.1"
     kafka-clients:
       lang: java
-      version: "2.4.1"
+      version: "2.8.1"
     kafka-clients:jar:test:
       lang: java
-      version: "2.4.1"
+      version: "2.8.1"
 
   org.bouncycastle:
     bcpkix-jdk15on:
