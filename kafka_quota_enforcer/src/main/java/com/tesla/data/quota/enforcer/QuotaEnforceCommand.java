@@ -36,13 +36,15 @@ public class QuotaEnforceCommand extends EnforceCommand<ConfiguredQuota> {
     Map<String, Object> zkConfig = zookeeperConfig();
     this.zkClient = KafkaZkClient.apply(
         zkConfig.get("connect").toString(),
-        JaasUtils.isZkSecurityEnabled(),
+        // NOTE: The function below only checks if SASL is enabled, it does not check if TLS is enabled.
+        JaasUtils.isZkSaslEnabled(),
         Integer.parseInt(zkConfig.get("sessionTimeoutMs").toString()),
         Integer.parseInt(zkConfig.get("connectionTimeoutMs").toString()),
         Integer.MAX_VALUE,
         Time.SYSTEM,
         ZK_METRIC_GROUP,
         ZK_METRIC_TYPE,
+        scala.Option.empty(),
         scala.Option.empty()
     );
     AdminZkClient adminClient = new AdminZkClient(zkClient);
