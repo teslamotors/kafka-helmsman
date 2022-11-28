@@ -8,6 +8,7 @@ java_library(
     ],
     runtime_deps = [
         ":bcprov_jdk15on",
+        ":bcutil_jdk15on",
     ],
 )
 
@@ -18,5 +19,18 @@ java_library(
     ],
     exports = [
         "//external:jar/org/bouncycastle/bcprov_jdk15on",
+    ],
+)
+
+java_library(
+    name = "bcutil_jdk15on",
+    visibility = [
+        "//3rdparty/jvm:__subpackages__",
+    ],
+    exports = [
+        "//external:jar/org/bouncycastle/bcutil_jdk15on",
+    ],
+    runtime_deps = [
+        ":bcprov_jdk15on",
     ],
 )

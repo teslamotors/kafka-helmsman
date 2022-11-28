@@ -115,10 +115,10 @@ dependencies:
   org.bouncycastle:
     bcpkix-jdk15on:
       lang: java
-      version: "1.54"
+      version: "1.70"
     bcprov-jdk15on:
       lang: java
-      version: "1.54"
+      version: "1.70"
 
   org.hamcrest:
     hamcrest-core:
