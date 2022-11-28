@@ -21,8 +21,8 @@ import java.util.Optional;
 public class KafkaClientKeystoresTest {
 
   private static final String PASSWORD = "password";
-  private static final String ISSUER_CN = "C=US,O=Tesla\\, Inc.,OU=PKI,CN=Corporate NA Device Issuing CA 01";
-  private static final String ROOT_CN = "C=US,O=Tesla\\, Inc.,OU=PKI,CN=Corporate Root CA";
+  private static final String ISSUER_CN = "CN=Corporate NA Device Issuing CA 01, OU=PKI, O=\"Tesla, Inc.\", C=US";
+  private static final String ROOT_CN = "CN=Corporate Root CA, OU=PKI, O=\"Tesla, Inc.\", C=US";
 
   @Test
   public void testKeystore() throws Exception {

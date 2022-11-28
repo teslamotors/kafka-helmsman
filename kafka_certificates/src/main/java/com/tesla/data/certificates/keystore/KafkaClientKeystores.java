@@ -46,7 +46,7 @@ public class KafkaClientKeystores {
     Security.addProvider(new BouncyCastleProvider());
 
     try {
-      certFactory = CertificateFactory.getInstance("x.509", BOUNCY_CASTLE_TYPE);
+      certFactory = CertificateFactory.getInstance("X.509");
     } catch (Exception e) {
       throw new RuntimeException(e);
     }
