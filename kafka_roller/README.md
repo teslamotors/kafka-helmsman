@@ -10,7 +10,7 @@ Kafka roller does exactly that -- it allows you to restart any size cluster with
 * Restart all nodes in the cluster
 * Restart a sub-set of nodes in the cluster
 * Keep a watch on the health of the cluster & consumers, throttle if needed
-* Custom pre-stop command to be executed before each broker restart
+* Custom pre-stop / pre-start command to be executed during each broker restart
 
 ## Dependencies and assumptions
 
@@ -44,10 +44,10 @@ Docstring:
 Options:
   -b STRING, --bootstrap=STRING       one or more kafka brokers
   -c STRING, --conf=STRING            kafka admin config overrides in a json file
-  -e INT, --healthcheck-wait=INT
-  -h INT, --healthcheck-retries=INT
-  -p STRING, --pre-stop=STRING
-  -r STRING, --pre-start=STRING
+  -e INT, --healthcheck-wait=INT      seconds to wait between health checks
+  -h INT, --healthcheck-retries=INT   health check retries before aborting
+  -p STRING, --pre-stop=STRING        command to run on each host before stopping the service
+  -r STRING, --pre-start=STRING       command to run on each host before starting the service
   -z STRING, --zk=STRING              zookeeper used by kafka
 ```
 
