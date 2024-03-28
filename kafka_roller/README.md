@@ -48,6 +48,7 @@ Options:
   -h INT, --healthcheck-retries=INT   health check retries before aborting
   -p STRING, --pre-stop=STRING        command to run on each host before stopping the service
   -r STRING, --pre-start=STRING       command to run on each host before starting the service
+  -s STRING, --start-cmd=STRING       customized command for starting the service
   -z STRING, --zk=STRING              zookeeper used by kafka
 ```
 
