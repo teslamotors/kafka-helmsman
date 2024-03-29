@@ -22,7 +22,8 @@ The tools are written in Java & Python. Refer to language specific section for d
 
 ## Java
 
-Kafka Helmsman is built and tested using Java 17.
+Kafka Helmsman is built and tested using Java 17. Bazel hermetically fetches a Java 17 distribution and uses it to compile the code and run tests.
+User environments only require the minimum Java version required for running Bazel itself (currently Java 8).
 
 ### Dependencies
 
