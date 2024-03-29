@@ -7,7 +7,7 @@ package com.tesla.data.enforcer;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
-import static org.mockito.Matchers.anyListOf;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -75,7 +75,7 @@ public class EnforcerTest {
     // safemode on
     enforcer = spy(new DummyEnforcer(dummies, () -> singletonList(unexpected), true));
     enforcer.enforceAll();
-    verify(enforcer, times(0)).delete(anyListOf(Dummy.class));
+    verify(enforcer, times(0)).delete(anyList());
 
     // safemode off
     enforcer = spy(new DummyEnforcer(dummies, () -> singletonList(unexpected), false));

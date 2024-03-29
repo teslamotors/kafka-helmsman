@@ -5,12 +5,12 @@
 package com.tesla.data.consumer.freshness;
 
 import static org.junit.Assert.assertEquals;
-import static org.mockito.Matchers.any;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
-import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
 import org.apache.kafka.clients.consumer.Consumer;
@@ -46,7 +46,7 @@ public class FreshnessTrackerTest {
     assertEquals("Freshness should be 0 if no lag", 0,
         metrics.freshness.labels("cluster", "group", "topic", "1").get(), 0);
     assertEquals(0, metrics.failed.labels("cluster", "group").get(), 0);
-    verifyZeroInteractions(kafka);
+    verifyNoInteractions(kafka);
   }
 
   @Test

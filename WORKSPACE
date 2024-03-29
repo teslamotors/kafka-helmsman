@@ -1,5 +1,5 @@
-load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive", "http_file")
 load("@bazel_tools//tools/build_defs/repo:git.bzl", "git_repository")
+load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive", "http_file")
 load("//3rdparty:workspace.bzl", "maven_dependencies")
 
 #-- Skylib begin --#
@@ -13,15 +13,25 @@ load("@bazel_skylib//:workspace.bzl", "bazel_skylib_workspace")
 
 bazel_skylib_workspace()
 
-load("@bazel_skylib//lib:versions.bzl", "versions")
-
-versions.check(
-    # Maximum version is inclusive, so set the maximum minor version to 99.
-    # This allows us to freely switch between minor versions without touching the WORKSPACE file.
-    maximum_bazel_version = "5.99.0",
-    minimum_bazel_version = "5.0.0",
-)
 #-- Skylib end --#
+
+#-- Java start --#
+RULES_JAVA_VERSION = "7.3.2"
+
+http_archive(
+    name = "rules_java",
+    sha256 = "3121a00588b1581bd7c1f9b550599629e5adcc11ba9c65f482bbd5cfe47fdf30",
+    urls = [
+        "https://github.com/bazelbuild/rules_java/releases/download/%s/rules_java-%s.tar.gz" % (RULES_JAVA_VERSION, RULES_JAVA_VERSION),
+    ],
+)
+
+load("@rules_java//java:repositories.bzl", "rules_java_dependencies", "rules_java_toolchains")
+
+rules_java_dependencies()
+
+rules_java_toolchains()
+#-- Java end --#
 
 #-- Maven start --#
 maven_dependencies()

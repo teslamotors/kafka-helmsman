@@ -5,12 +5,9 @@
 package com.tesla.data.quota.enforcer;
 
 import static java.util.Collections.emptyList;
-import static org.mockito.Matchers.anyCollection;
-import static org.mockito.Matchers.anyCollectionOf;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -49,13 +46,13 @@ public class QuotaEnforcerTest {
   public void testCreateDryRun() {
     QuotaEnforcer enforcer = new QuotaEnforcer(emptyList(), quotaService, true, true);
     enforcer.create(quotas);
-    verifyZeroInteractions(quotaService);
+    verifyNoInteractions(quotaService);
   }
 
   @Test
   public void testDeleteDryRun() {
     QuotaEnforcer enforcer = new QuotaEnforcer(emptyList(), quotaService, true, true);
     enforcer.delete(quotas);
-    verifyZeroInteractions(quotaService);
+    verifyNoInteractions(quotaService);
   }
 }

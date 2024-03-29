@@ -22,21 +22,21 @@ dependencies:
     jackson:
       lang: java
       modules: [ "annotations", "core", "databind" ]
-      version: "2.9.5"
+      version: "2.17.0"
 
   com.fasterxml.jackson.dataformat:
     jackson:
       lang: java
       modules: [ "dataformat-csv", "dataformat-yaml" ]
-      version: "2.9.5"
+      version: "2.17.0"
 
   com.fasterxml.jackson.module:
     jackson-module-parameter-names:
       lang: java
-      version: "2.9.5"
+      version: "2.17.0"
     jackson-module-scala:
       lang: scala
-      version: "2.9.5"
+      version: "2.17.0"
 
   com.google.guava:
     failureaccess:
@@ -85,7 +85,7 @@ dependencies:
   junit:
     junit:
       lang: java
-      version: "4.11"
+      version: "4.13.2"
 
   log4j:
     log4j:
@@ -95,7 +95,7 @@ dependencies:
   org.apache.commons:
     commons-lang3:
       lang: java
-      version: "3.7"
+      version: "3.12.0"
 
   org.apache.kafka:
     kafka:
@@ -123,16 +123,10 @@ dependencies:
       lang: java
       version: "1.70"
 
-  org.hamcrest:
-    hamcrest-core:
-      lang: java
-      version: "1.3"
-
   org.mockito:
-    mockito:
+    mockito-core:
       lang: java
-      modules: [ "all", "core" ]
-      version: "1.10.19"
+      version: "4.11.0"
 
   org.scala-lang:
     scala-library:

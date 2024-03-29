@@ -1,0 +1,8 @@
+# Java language version used by source code and any tools that are compiled in-build.
+# This is also the minimum Java runtime version that the compiled code will execute with.
+build --java_language_version=17
+build --tool_java_language_version=17
+
+# Java runtime version used for running tests and tools that need to run as part of a build.
+build --java_runtime_version=remotejdk_17
+build --tool_java_runtime_version=remotejdk_17

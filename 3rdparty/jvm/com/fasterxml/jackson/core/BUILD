@@ -29,5 +29,6 @@ java_library(
     runtime_deps = [
         ":jackson_annotations",
         ":jackson_core",
+        "//3rdparty/jvm/net/bytebuddy:byte_buddy",
     ],
 )
