@@ -6,6 +6,7 @@ java_test(
     deps = [
         "//3rdparty/jvm/org/apache/kafka:kafka_clients",
         "//3rdparty/jvm/org/mockito:mockito_core",
+        "//3rdparty/jvm_shaded/com/google/guava_shaded",
         "//kafka_topic_enforcer/src/main/java/com/tesla/data/topic/enforcer",
     ],
 )
@@ -18,6 +19,7 @@ java_test(
     deps = [
         "//3rdparty/jvm/ch/qos/logback:logback_classic",
         "//3rdparty/jvm/org/mockito:mockito_core",
+        "//3rdparty/jvm_shaded/com/google/guava_shaded",
         "//kafka_topic_enforcer/src/main/java/com/tesla/data/topic/enforcer",
     ],
 )

@@ -9,51 +9,48 @@ import static org.apache.kafka.clients.consumer.ConsumerRecord.NULL_CHECKSUM;
 import static org.apache.kafka.clients.consumer.ConsumerRecord.NULL_SIZE;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
-import static org.mockito.Matchers.any;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static tesla.shade.com.google.common.collect.Lists.newArrayList;
 
-import com.google.common.collect.ImmutableMap;
 import io.prometheus.client.Gauge;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.common.TopicPartition;
-import org.apache.kafka.common.KafkaException;
 import org.apache.kafka.common.record.TimestampType;
 import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
-import org.mockito.Mock;
 import org.mockito.Mockito;
+import tesla.shade.com.google.common.collect.ImmutableMap;
 import tesla.shade.com.google.common.collect.Lists;
 import tesla.shade.com.google.common.util.concurrent.ListeningExecutorService;
 import tesla.shade.com.google.common.util.concurrent.MoreExecutors;
 
 import java.io.IOException;
 import java.time.Duration;
-import java.util.*;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.function.Consumer;
-import java.util.stream.Collectors;
 
 /**
- * Validate that we compute freshness and handle errors as expected. Specifically, for errors, we do the following:
- *  * rejected freshness lookup -> fail the application (something very wrong)
- *  * interrupted while waiting for a consumer -> mark the cluster as failed
- *  * freshness computation throws an exception -> marks the group as a failure
- *  * Burrow errors (failed response, bad data, etc.)
- *    * find all clusters -> fail run, mark error
- *    * find all consumers in a cluster -> mark the cluster as failed
- *    * find status of a consumer -> skip the consumer, mark the consumer as failed, but not the cluster
- *    * missing partition end offset -> mark missing, skip partition
+ * Validate that we compute freshness and handle errors as expected. Specifically, for errors, we do the following: *
+ * rejected freshness lookup -> fail the application (something very wrong) * interrupted while waiting for a consumer
+ * -> mark the cluster as failed * freshness computation throws an exception -> marks the group as a failure * Burrow
+ * errors (failed response, bad data, etc.) * find all clusters -> fail run, mark error * find all consumers in a
+ * cluster -> mark the cluster as failed * find status of a consumer -> skip the consumer, mark the consumer as failed,
+ * but not the cluster * missing partition end offset -> mark missing, skip partition
  */
 public class ConsumerFreshnessTest {
 
@@ -80,7 +77,7 @@ public class ConsumerFreshnessTest {
 
       // if there is no burrow lag, we shouldn't even try to read kafka
       try {
-        verifyZeroInteractions(workers.get("cluster1").take());
+        verifyNoInteractions(workers.get("cluster1").take());
       } catch (InterruptedException e) {
         throw new RuntimeException(e);
       }
@@ -98,7 +95,7 @@ public class ConsumerFreshnessTest {
         partitionState("topic1", 1, 10, lagMs));
     when(burrow.getClusters()).thenReturn(newArrayList(client));
 
-    withExecutor(executor ->{
+    withExecutor(executor -> {
       KafkaConsumer consumer = mock(KafkaConsumer.class);
       when(consumer.poll(Mockito.any(Duration.class))).thenReturn(records("topic", 1, 10, lagMs));
       ConsumerFreshness freshness = new ConsumerFreshness();
@@ -120,7 +117,7 @@ public class ConsumerFreshnessTest {
         partitionState("topic1", 1, 10, 10L));
     when(burrow.getClusters()).thenReturn(newArrayList(client));
 
-    withExecutor(executor ->{
+    withExecutor(executor -> {
       // create an empty queue of workers so #take blocks forever, giving us the opportunity to interrupt the thread.
       Map<String, ArrayBlockingQueue<KafkaConsumer>> workers = new HashMap<>(1);
       ArrayBlockingQueue<KafkaConsumer> queue = new ArrayBlockingQueue<>(1);
@@ -267,8 +264,8 @@ public class ConsumerFreshnessTest {
         when(client.consumerGroups()).thenReturn(newArrayList("group"));
         when(client.getConsumerGroupStatus("group")).thenReturn(ImmutableMap.of(
             "partitions", newArrayList(ImmutableMap.of(
-                "topic", "some-topic",
-                "partition", 1
+                    "topic", "some-topic",
+                    "partition", 1
                 )
             )));
         freshness.run();
@@ -287,7 +284,7 @@ public class ConsumerFreshnessTest {
     String clusterName = "bad_cluster";
     when(burrow.getClusterBootstrapServers(clusterName)).thenThrow(new IOException());
     Map<String, Object> conf = mockConfForCluster(
-            clusterName, "l1.example.com:9092", "l2.example.com:9092"
+        clusterName, "l1.example.com:9092", "l2.example.com:9092"
     );
 
     ConsumerFreshness freshness = new ConsumerFreshness();
@@ -297,7 +294,7 @@ public class ConsumerFreshnessTest {
     Assert.assertTrue(msg.isPresent());
     Assert.assertTrue(msg.get().contains("failed to read cluster detail from Burrow: "));
     Assert.assertEquals(1.0,
-            freshness.getMetricsForTesting().burrowClusterDetailReadFailed.labels(clusterName).get(), 0.0);
+        freshness.getMetricsForTesting().burrowClusterDetailReadFailed.labels(clusterName).get(), 0.0);
   }
 
   @Test
@@ -305,13 +302,13 @@ public class ConsumerFreshnessTest {
     Burrow burrow = mock(Burrow.class);
     String clusterName = "cluster1";
     when(burrow.getClusterBootstrapServers(clusterName))
-            .thenReturn(Arrays.asList("kafka01.example.com:10251", "kafka02.example.com:10251")
-      );
+        .thenReturn(Arrays.asList("kafka01.example.com:10251", "kafka02.example.com:10251")
+        );
 
     Map<String, Object> conf = mockConfForCluster(
         clusterName,
         "kafka01.example.com:10251", "kafka02.example.com:10251"
-        );
+    );
 
     ConsumerFreshness freshness = new ConsumerFreshness();
     freshness.burrow = burrow;
@@ -329,26 +326,26 @@ public class ConsumerFreshnessTest {
     Burrow burrow = mock(Burrow.class);
     String clusterName = "cluster1";
     List<String> burrowBootstrapServers = Arrays.asList(
-            "kafka01.example.com:10251", "kafka02.example.com:10251");
+        "kafka01.example.com:10251", "kafka02.example.com:10251");
     when(burrow.getClusterBootstrapServers(clusterName))
-      .thenReturn(burrowBootstrapServers);
+        .thenReturn(burrowBootstrapServers);
 
     List<String> confBootstrapServers = Arrays.asList("kafka01.example.com:10251", "kafka02.example.com:10251",
-            "kafka03.example.com:10251");
+        "kafka03.example.com:10251");
 
     Map<String, Object> conf = mockConfForCluster(
         clusterName,
         confBootstrapServers.toArray(new String[0])
-        );
+    );
 
     ConsumerFreshness freshness = new ConsumerFreshness();
     freshness.burrow = burrow;
 
     String expected = String.format(
-            "the set of bootstrap servers in config is not the same as the " +
-                    "set advertised by Burrow\nconfig: %s\nburrow: %s",
-            String.join(", ", confBootstrapServers),
-            String.join(", ", burrowBootstrapServers)
+        "the set of bootstrap servers in config is not the same as the " +
+            "set advertised by Burrow\nconfig: %s\nburrow: %s",
+        String.join(", ", confBootstrapServers),
+        String.join(", ", burrowBootstrapServers)
     );
 
     // normal mode
@@ -364,25 +361,25 @@ public class ConsumerFreshnessTest {
     Burrow burrow = mock(Burrow.class);
     String clusterName = "cluster1";
     List<String> burrowBootstrapServers = Arrays.asList("kafka01.example.com:10251", "kafka02.example.com:10251",
-            "kafka03.example.com:10251");
+        "kafka03.example.com:10251");
     List<String> confBootstrapServers = Arrays.asList("kafka01.example.com:10251", "kafka02.example.com:10251");
 
     when(burrow.getClusterBootstrapServers(clusterName))
-      .thenReturn(burrowBootstrapServers);
+        .thenReturn(burrowBootstrapServers);
 
     Map<String, Object> conf = mockConfForCluster(
         clusterName,
-            confBootstrapServers.toArray(new String[0])
-        );
+        confBootstrapServers.toArray(new String[0])
+    );
 
     ConsumerFreshness freshness = new ConsumerFreshness();
     freshness.burrow = burrow;
 
     String expected = String.format(
-            "the set of bootstrap servers in config is not the same as the " +
-                    "set advertised by Burrow\nconfig: %s\nburrow: %s",
-            String.join(", ", confBootstrapServers),
-            String.join(", ", burrowBootstrapServers)
+        "the set of bootstrap servers in config is not the same as the " +
+            "set advertised by Burrow\nconfig: %s\nburrow: %s",
+        String.join(", ", confBootstrapServers),
+        String.join(", ", burrowBootstrapServers)
     );
 
     // normal mode
@@ -394,11 +391,11 @@ public class ConsumerFreshnessTest {
 
     Map<String, Object> globalConf = new HashMap<>();
     globalConf.put("clusters", Lists.newArrayList(conf));
-    
+
     // RuntimeException should be thrown when attempting to setup Tracker with invalid configuration in strict mode
     thrown.expect(RuntimeException.class);
     thrown.expectMessage(expected);
-    
+
     freshness.setupWithBurrow(globalConf, burrow);
   }
 
@@ -433,13 +430,13 @@ public class ConsumerFreshnessTest {
     freshness.run();
   }
 
-  private void assertNoSuccessfulClusterMeasurement(ConsumerFreshness freshness, String cluster){
+  private void assertNoSuccessfulClusterMeasurement(ConsumerFreshness freshness, String cluster) {
     FreshnessMetrics metrics = freshness.getMetricsForTesting();
     assertEquals("Cluster measurement should not be successful",
         0.0, metrics.lastClusterRunSuccessfulAttempt.labels(cluster).get(), 0.0);
   }
 
-  private void assertSuccessfulClusterMeasurement(ConsumerFreshness freshness, String cluster){
+  private void assertSuccessfulClusterMeasurement(ConsumerFreshness freshness, String cluster) {
     FreshnessMetrics metrics = freshness.getMetricsForTesting();
     assertTrue("Cluster measurement should be successful",
         metrics.lastClusterRunSuccessfulAttempt.labels(cluster).get() > 0);
@@ -477,14 +474,14 @@ public class ConsumerFreshnessTest {
   /**
    * Mock a state of the cluster that has a single consumer group for a number of partitions
    *
-   * @param cluster name of the cluster
-   * @param group name of the consumer group
+   * @param cluster    name of the cluster
+   * @param group      name of the consumer group
    * @param partitions partitions the consumer is "reading"
    * @return mock client
    * @see #partitionState(String, int, long, long) helper function to more easily generate partition description
    */
   private Burrow.ClusterClient mockClusterState(String cluster, String group,
-      Map<String, Object>... partitions) throws IOException {
+                                                Map<String, Object>... partitions) throws IOException {
     Burrow.ClusterClient client = mock(Burrow.ClusterClient.class);
 
     when(client.getCluster()).thenReturn(cluster);
@@ -500,10 +497,10 @@ public class ConsumerFreshnessTest {
   /**
    * Generate the state as returned by the {@link Burrow} client representing the consumer of a topic/partition.
    *
-   * @param topic topic name
+   * @param topic           topic name
    * @param partitionNumber index of the partition
-   * @param endOffset most recent offset "read" by the consumer
-   * @param currentLagMs amount of lag, in milliseconds, the consumer is behind the Log-Eng-Offset
+   * @param endOffset       most recent offset "read" by the consumer
+   * @param currentLagMs    amount of lag, in milliseconds, the consumer is behind the Log-Eng-Offset
    */
   private Map<String, Object> partitionState(String topic, int partitionNumber, long endOffset, long currentLagMs) {
     Map<String, Object> partition = new HashMap<>();
@@ -517,10 +514,10 @@ public class ConsumerFreshnessTest {
   }
 
   /**
-   * Create a {@link ConsumerRecords} with a single consumer record at the given topic, partition, offset and lagging
-   * by at least the given milliseconds.
+   * Create a {@link ConsumerRecords} with a single consumer record at the given topic, partition, offset and lagging by
+   * at least the given milliseconds.
    */
-  private ConsumerRecords records(String topic, int partition, long offset, long lagMs){
+  private ConsumerRecords records(String topic, int partition, long offset, long lagMs) {
     return new ConsumerRecords(ImmutableMap.of(
         new TopicPartition(topic, partition), asList(
             new ConsumerRecord(topic, partition, offset, System.currentTimeMillis() - lagMs,

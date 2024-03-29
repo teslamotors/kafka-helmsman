@@ -5,8 +5,8 @@
 package com.tesla.data.consumer.freshness;
 
 import static org.junit.Assert.assertEquals;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.argThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -18,8 +18,6 @@ import okhttp3.Protocol;
 import okhttp3.Request;
 import okhttp3.Response;
 import okhttp3.ResponseBody;
-import org.hamcrest.BaseMatcher;
-import org.hamcrest.Description;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
@@ -137,18 +135,7 @@ public class BurrowTest {
   }
 
   private Request expectPath(String path) {
-    return argThat(new BaseMatcher<Request>() {
-      @Override
-      public void describeTo(Description description) {
-        description.appendText("Requested URL does not match expected: " + path);
-      }
-
-      @Override
-      public boolean matches(Object o) {
-        Request request = (Request) o;
-        return request.url().encodedPath().equals(path);
-      }
-    });
+    return argThat(request -> request.url().encodedPath().equals(path));
   }
 
   private Answer<Call> respondWithJson(Object o) {

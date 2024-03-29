@@ -23,6 +23,7 @@ java_library(
     ],
     runtime_deps = [
         "//3rdparty/jvm/com/fasterxml/jackson/core:jackson_core",
+        "//3rdparty/jvm/com/fasterxml/jackson/core:jackson_databind",
         "//3rdparty/jvm/org/yaml:snakeyaml",
     ],
 )

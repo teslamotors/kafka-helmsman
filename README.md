@@ -31,16 +31,16 @@ Bazelisk can be installed in different ways, see [here](https://docs.bazel.build
 ### Test
 
 ```
-bazel test //...:all
+bazel test //...
 ```
 
 ### Build
 
 ```
-bazel build //...:all
+bazel build //...
 ```
 
-> Note: In bazel, target spec `//..:all` indicates all rules in all packages beneath workspace, thus `bazel build //...:all` implies build everything.
+> Note: In bazel, target spec `//...` indicates all targets in all packages beneath workspace, thus `bazel build //...` implies build everything.
 
 ### Intellij
 
@@ -50,8 +50,7 @@ If you are using Intellij + Bazel, you can import the project directly with:
  * Select "Import project view file" and select the `ij.bazelproject` file
  * Select "Finish" with Infer from: Workspace (the default selection)
 
-The newest version of Intellij does not play nicely with Bazel (and its plugins). We recommend using Intellij 2018.3.6 
-with Bazel plugin version v2019.04.15.0.5
+We recommend using the latest version of Intellij with the latest version of Bazel plugin.
 
 ## Python
 
