@@ -9,6 +9,8 @@ Kafka topic enforcer's goal is to automate Kafka topic management & hence remove
 * Self service, removed dependency on a human
 * Simple configuration
 
+If you choose to use Strimzi Kafka operator, this command can also generate Strimzi KafkaTopic CRDs.
+
 ## Dependencies
 
 * JVM 
@@ -51,6 +53,9 @@ Usage: <main class> [options] [command] [command options]
     enforce      Enforce given configuration
       Usage: enforce [options] path to a configuration file
         Options:
+          --cluster
+            a cluster name, if specified, consolidated (multi-cluster)
+            configuration file is expected
           --continuous, -c
             run enforcement continuously
             Default: false
@@ -63,6 +68,17 @@ Usage: <main class> [options] [command] [command options]
           --unsafemode
             run in unsafe mode, topic deletion is _only_ allowed in this mode
             Default: false
+    strimzi      Generate the Strimzi KafkaTopic resources YAML on stdout from
+            the topic config. Certain information such as topic tags and
+            config comments would be missed, and the resource
+            metadata names are also converted to conform RFC 1123.
+      Usage: strimzi [options] /path/to/a/configuration/file
+        Options:
+          --cluster
+            a cluster name, if specified, consolidated (multi-cluster)
+            configuration file is expected
+        * --kafka_cluster, -k
+            the name of the Strimzi Kafka cluster to be generated for
 ```
 
 ## Configuration

@@ -48,6 +48,7 @@ public class Main {
     final Main main = new Main();
     final Map<String, BaseCommand<ConfiguredTopic>> commands = new HashMap<>();
     commands.put("validate", new BaseCommand<>());
+    commands.put("strimzi", new StrimziCommand());
     commands.put("dump", new DumpCommand());
     commands.put("enforce", new TopicEnforceCommand());
 
