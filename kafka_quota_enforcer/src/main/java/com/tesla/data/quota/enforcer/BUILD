@@ -18,6 +18,9 @@ java_library(
 java_binary(
     name = "Main",
     main_class = "com.tesla.data.quota.enforcer.Main",
+    resources = [
+        "//kafka_enforcer_common/src/main/resources:logback_conf",
+    ],
     runtime_deps = [
         ":enforcer",
         "//3rdparty/jvm/ch/qos/logback:logback_classic",

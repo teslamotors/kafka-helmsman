@@ -22,6 +22,9 @@ java_library(
 java_binary(
     name = "Main",
     main_class = "com.tesla.data.topic.enforcer.Main",
+    resources = [
+        "//kafka_enforcer_common/src/main/resources:logback_conf",
+    ],
     visibility = ["//visibility:public"],
     runtime_deps = [
         ":enforcer",
