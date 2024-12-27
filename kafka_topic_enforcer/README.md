@@ -8,6 +8,8 @@ Kafka topic enforcer's goal is to automate Kafka topic management & hence remove
 * Applies uniform central control to topics and enforces best practices consistently (aka idiot proofing) 
 * Self service, removed dependency on a human
 * Simple configuration
+* Internal Kafka topics (with a suffix of underscore `_`) are skipped from enforcement. Good for tools like kminion that
+  needs to manage the topics on its own.
 
 If you choose to use Strimzi Kafka operator, this command can also generate Strimzi KafkaTopic CRDs.
 
