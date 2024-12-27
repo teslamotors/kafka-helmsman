@@ -19,10 +19,9 @@ public interface TopicService {
   /**
    * Load existing topics from a kafka cluster.
    *
-   * @param excludeInternal if true kafka internal topics are excluded
    * @return a collection of topics.
    */
-  Map<String, ConfiguredTopic> listExisting(boolean excludeInternal);
+  Map<String, ConfiguredTopic> listExisting();
 
   /**
    * Create new topics.

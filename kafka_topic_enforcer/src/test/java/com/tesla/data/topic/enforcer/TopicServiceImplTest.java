@@ -122,7 +122,7 @@ public class TopicServiceImplTest {
     when(adminClient.describeTopics(topicNames)).thenReturn(describeTopicsResult);
     when(adminClient.describeConfigs(any(Collection.class))).thenReturn(describeConfigsResult);
 
-    Map<String, ConfiguredTopic> actual = service.listExisting(true);
+    Map<String, ConfiguredTopic> actual = service.listExisting();
     Assert.assertEquals(2, actual.size());
     Assert.assertEquals(new HashSet<>(Arrays.asList("a", "b")), actual.keySet());
   }

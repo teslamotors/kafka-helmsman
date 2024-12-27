@@ -24,7 +24,7 @@ public class DumpCommand extends BaseCommand<ConfiguredTopic> {
   public int run() {
     try (AdminClient kafka = KafkaAdminClient.create(kafkaConfig())) {
       TopicService topicService = new TopicServiceImpl(kafka, true);
-      Collection<ConfiguredTopic> existing = topicService.listExisting(true).values()
+      Collection<ConfiguredTopic> existing = topicService.listExisting().values()
           .stream()
           .sorted(Comparator.comparing(ConfiguredTopic::getName))
           .collect(Collectors.toList());

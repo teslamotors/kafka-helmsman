@@ -54,7 +54,7 @@ public class TopicEnforcer extends Enforcer<ConfiguredTopic> {
       boolean safemode) {
     super(
         configuredTopics,
-        () -> topicService.listExisting(true).values(),
+        () -> topicService.listExisting().values(),
         (t1, t2) -> t1.getName().equals(t2.getName()),
         safemode);
     checkArgument(
@@ -88,7 +88,7 @@ public class TopicEnforcer extends Enforcer<ConfiguredTopic> {
     if (this.configured.isEmpty()) {
       return Collections.emptyList();
     }
-    Map<String, ConfiguredTopic> existing = this.topicService.listExisting(true);
+    Map<String, ConfiguredTopic> existing = this.topicService.listExisting();
     return Collections.unmodifiableList(
         this.configured.stream()
             .filter(t -> existing.containsKey(t.getName()))
