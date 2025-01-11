@@ -61,13 +61,13 @@ public class TopicEnforcerTest {
         "d", new ConfiguredTopic("b", 1, (short) 1, Collections.emptyMap())
     );
 
-    when(service.listExisting(true)).thenReturn(existing);
+    when(service.listExisting()).thenReturn(existing);
     TopicEnforcer enforcer = new TopicEnforcer(service, configured, true);
     enforcer.increasePartitions();
 
     // topic 'b' and 'c' should be subject to config alteration
     List<ConfiguredTopic> expected = Arrays.asList(configured.get(1), configured.get(2));
-    verify(service).listExisting(true);
+    verify(service).listExisting();
     verify(service).increasePartitions(expected);
     verifyNoMoreInteractions(service);
   }
@@ -91,13 +91,13 @@ public class TopicEnforcerTest {
         "d", new ConfiguredTopic("d", 1, (short) 1, Collections.singletonMap("k", "v"))
     );
 
-    when(service.listExisting(true)).thenReturn(existing);
+    when(service.listExisting()).thenReturn(existing);
     TopicEnforcer enforcer = new TopicEnforcer(service, configured, true);
     enforcer.alterConfiguration();
 
     // topic 'a' and 'd' should be subject to config alteration
     List<ConfiguredTopic> expected = Arrays.asList(configured.get(0), configured.get(3));
-    verify(service).listExisting(true);
+    verify(service).listExisting();
     verify(service).alterConfiguration(expected);
     verifyNoMoreInteractions(service);
   }
@@ -108,7 +108,7 @@ public class TopicEnforcerTest {
         new ConfiguredTopic("a", 1000, (short) 3, Collections.emptyMap()));
     Map<String, ConfiguredTopic> existing = Collections.singletonMap("a",
         new ConfiguredTopic("a", 100, (short) 3, Collections.emptyMap()));
-    when(service.listExisting(true)).thenReturn(existing);
+    when(service.listExisting()).thenReturn(existing);
     enforcer = new TopicEnforcer(service, configured, false);
     Assert.assertEquals("aggressive partition count increase must be allowed in unsafe mode", configured,
         enforcer.increasePartitions());
@@ -121,7 +121,7 @@ public class TopicEnforcerTest {
         new ConfiguredTopic("a", 10, (short) 3, risky));
     Map<String, ConfiguredTopic> existing = Collections.singletonMap("a",
         new ConfiguredTopic("a", 10, (short) 3, Collections.emptyMap()));
-    when(service.listExisting(true)).thenReturn(existing);
+    when(service.listExisting()).thenReturn(existing);
 
     // attempt a risk config change, it should go through
     enforcer = new TopicEnforcer(service, configured,

@@ -30,7 +30,6 @@ import java.util.concurrent.ExecutionException;
 
 public class TopicServiceImpl implements TopicService {
 
-  private static final ListTopicsOptions INCLUDE_INTERNAL = new ListTopicsOptions().listInternal(true);
   private static final ListTopicsOptions EXCLUDE_INTERNAL = new ListTopicsOptions().listInternal(false);
   private final AdminClient adminClient;
   private final boolean dryRun;
@@ -94,11 +93,9 @@ public class TopicServiceImpl implements TopicService {
   }
 
   @Override
-  public Map<String, ConfiguredTopic> listExisting(boolean excludeInternal) {
+  public Map<String, ConfiguredTopic> listExisting() {
     try {
-      Set<String> topics = adminClient
-          .listTopics(excludeInternal ? EXCLUDE_INTERNAL : INCLUDE_INTERNAL)
-          .names().get();
+      Set<String> topics = adminClient.listTopics(EXCLUDE_INTERNAL).names().get();
       Collection<TopicDescription> topicDescriptions = adminClient.describeTopics(topics).all().get().values();
 
       List<ConfigResource> resources = topics
