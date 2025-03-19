@@ -42,7 +42,7 @@ public class QuotaServiceTest {
     existingUserClientQuotas.put("user1/clients/client1", user1Client1Props);
 
     Properties defaultUserDefaultClient = new Properties();
-    defaultUserDefaultClient.put("producer_byte_rate", "200");
+    defaultUserDefaultClient.put("producer_byte_rate", "200.0");
     defaultUserDefaultClient.put("consumer_byte_rate", "500");
     defaultUserDefaultClient.put("request_percentage", "80");
     existingUserClientQuotas.put("<default>/clients/<default>", defaultUserDefaultClient);
@@ -79,11 +79,11 @@ public class QuotaServiceTest {
     Map<String, Properties> existingClientQuotas = new HashMap<>();
     Properties client1Props = new Properties();
     client1Props.put("producer_byte_rate", "150");
-    client1Props.put("request_percentage", "200");
+    client1Props.put("request_percentage", "200.0");
     existingClientQuotas.put("client1", client1Props);
 
     Properties defaultClientProps = new Properties();
-    defaultClientProps.put("producer_byte_rate", "5000");
+    defaultClientProps.put("producer_byte_rate", "5000.0");
     existingClientQuotas.put("<default>", defaultClientProps);
 
     // entry with empty props should be ignored (signifies a deleted config)
@@ -93,13 +93,13 @@ public class QuotaServiceTest {
         .thenReturn(JavaConverters.mapAsScalaMapConverter(existingClientQuotas).asScala());
 
     List<ConfiguredQuota> expected = new ArrayList<>();
-    expected.add(new ConfiguredQuota("user1", "client1", 100, null, null));
-    expected.add(new ConfiguredQuota("<default>", "<default>", 200, 500, 80));
-    expected.add(new ConfiguredQuota("user1", null, 3000, 2000, null));
-    expected.add(new ConfiguredQuota("user2", null, null, null, 40));
-    expected.add(new ConfiguredQuota("<default>", null, 7000, 6000, null));
-    expected.add(new ConfiguredQuota(null, "client1", 150, null, 200));
-    expected.add(new ConfiguredQuota(null, "<default>", 5000, null, null));
+    expected.add(new ConfiguredQuota("user1", "client1", 100., null, null));
+    expected.add(new ConfiguredQuota("<default>", "<default>", 200., 500., 80.));
+    expected.add(new ConfiguredQuota("user1", null, 3000., 2000., null));
+    expected.add(new ConfiguredQuota("user2", null, null, null, 40.));
+    expected.add(new ConfiguredQuota("<default>", null, 7000., 6000., null));
+    expected.add(new ConfiguredQuota(null, "client1", 150., null, 200.));
+    expected.add(new ConfiguredQuota(null, "<default>", 5000., null, null));
 
     QuotaService svc = new QuotaService(adminClient);
     Collection<ConfiguredQuota> actual = svc.listExisting();
@@ -110,27 +110,27 @@ public class QuotaServiceTest {
   @Test
   public void testCreateQuotas() {
     List<ConfiguredQuota> toCreate = new ArrayList<>();
-    toCreate.add(new ConfiguredQuota("user1", "<default>", 100, null, null));
-    toCreate.add(new ConfiguredQuota("user2", null, null, null, 40));
-    toCreate.add(new ConfiguredQuota("<default>", null, 7000, 6000, null));
-    toCreate.add(new ConfiguredQuota(null, "client1", 150, null, 200));
-    toCreate.add(new ConfiguredQuota(null, "<default>", 5000, null, null));
+    toCreate.add(new ConfiguredQuota("user1", "<default>", 100., null, null));
+    toCreate.add(new ConfiguredQuota("user2", null, null, null, 40.));
+    toCreate.add(new ConfiguredQuota("<default>", null, 7000., 6000., null));
+    toCreate.add(new ConfiguredQuota(null, "client1", 150., null, 200.));
+    toCreate.add(new ConfiguredQuota(null, "<default>", 5000., null, null));
 
     QuotaService svc = new QuotaService(adminClient);
     svc.create(toCreate);
 
     Properties user1DefaultClientProps = new Properties();
-    user1DefaultClientProps.put("producer_byte_rate", "100");
+    user1DefaultClientProps.put("producer_byte_rate", "100.0");
     Properties user2Props = new Properties();
-    user2Props.put("request_percentage", "40");
+    user2Props.put("request_percentage", "40.0");
     Properties defaultUserProps = new Properties();
-    defaultUserProps.put("producer_byte_rate", "7000");
-    defaultUserProps.put("consumer_byte_rate", "6000");
+    defaultUserProps.put("producer_byte_rate", "7000.0");
+    defaultUserProps.put("consumer_byte_rate", "6000.0");
     Properties client1Props = new Properties();
-    client1Props.put("producer_byte_rate", "150");
-    client1Props.put("request_percentage", "200");
+    client1Props.put("producer_byte_rate", "150.0");
+    client1Props.put("request_percentage", "200.0");
     Properties defaultClientProps = new Properties();
-    defaultClientProps.put("producer_byte_rate", "5000");
+    defaultClientProps.put("producer_byte_rate", "5000.0");
 
     verify(adminClient).changeConfigs(ConfigType.User(), "user1/clients/<default>", user1DefaultClientProps);
     verify(adminClient).changeConfigs(ConfigType.User(), "user2", user2Props);
@@ -143,11 +143,11 @@ public class QuotaServiceTest {
   @Test
   public void testDeleteQuotas() {
     List<ConfiguredQuota> toDelete = new ArrayList<>();
-    toDelete.add(new ConfiguredQuota("user1", "<default>", 100, null, null));
-    toDelete.add(new ConfiguredQuota("user2", null, null, null, 40));
-    toDelete.add(new ConfiguredQuota("<default>", null, 7000, 6000, null));
-    toDelete.add(new ConfiguredQuota(null, "client1", 150, null, 200));
-    toDelete.add(new ConfiguredQuota(null, "<default>", 5000, null, null));
+    toDelete.add(new ConfiguredQuota("user1", "<default>", 100., null, null));
+    toDelete.add(new ConfiguredQuota("user2", null, null, null, 40.));
+    toDelete.add(new ConfiguredQuota("<default>", null, 7000., 6000., null));
+    toDelete.add(new ConfiguredQuota(null, "client1", 150., null, 200.));
+    toDelete.add(new ConfiguredQuota(null, "<default>", 5000., null, null));
 
     QuotaService svc = new QuotaService(adminClient);
     svc.delete(toDelete);

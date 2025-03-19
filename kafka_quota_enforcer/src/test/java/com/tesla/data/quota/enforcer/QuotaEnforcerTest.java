@@ -19,8 +19,8 @@ public class QuotaEnforcerTest {
 
   private QuotaService quotaService;
   private static final List<ConfiguredQuota> quotas = Arrays.asList(
-      new ConfiguredQuota("user1", "clientA", 5000, 4000, 100),
-      new ConfiguredQuota("<default>", null, 6000, 3000, null)
+      new ConfiguredQuota("user1", "clientA", 5000., 4000., 100.),
+      new ConfiguredQuota("<default>", null, 6000., 3000., null)
   );
 
   @Before

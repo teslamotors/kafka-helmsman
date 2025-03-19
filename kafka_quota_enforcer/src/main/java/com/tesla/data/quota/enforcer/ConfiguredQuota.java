@@ -16,14 +16,14 @@ public class ConfiguredQuota {
   private final String principal;
   private final String client;
   @JsonProperty("producer-byte-rate")
-  private final Integer producerByteRate;
+  private final Double producerByteRate;
   @JsonProperty("consumer-byte-rate")
-  private final Integer consumerByteRate;
+  private final Double consumerByteRate;
   @JsonProperty("request-percentage")
-  private final Integer requestPercentage;
+  private final Double requestPercentage;
 
-  public ConfiguredQuota(String principal, String client, Integer producerByteRate,
-                         Integer consumerByteRate, Integer requestPercentage) {
+  public ConfiguredQuota(String principal, String client, Double producerByteRate,
+                         Double consumerByteRate, Double requestPercentage) {
     Preconditions.checkArgument(principal != null || client != null, "Invalid quota configuration detected. " +
         "At least one of 'principal' or 'client' must be provided.");
     this.principal = principal;
@@ -41,15 +41,15 @@ public class ConfiguredQuota {
     return client;
   }
 
-  public Integer getProducerByteRate() {
+  public Double getProducerByteRate() {
     return producerByteRate;
   }
 
-  public Integer getConsumerByteRate() {
+  public Double getConsumerByteRate() {
     return consumerByteRate;
   }
 
-  public Integer getRequestPercentage() {
+  public Double getRequestPercentage() {
     return requestPercentage;
   }
 
