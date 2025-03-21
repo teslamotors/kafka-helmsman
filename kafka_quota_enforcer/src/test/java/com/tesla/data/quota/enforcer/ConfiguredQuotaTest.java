@@ -13,17 +13,17 @@ public class ConfiguredQuotaTest {
   public void testBadConfiguration() {
     thrown.expect(IllegalArgumentException.class);
     thrown.expectMessage("Invalid quota configuration detected. At least one of 'principal' or 'client' must be provided.");
-    new ConfiguredQuota(null, null, 5000., 4000., 50.);
+    new ConfiguredQuota(null, null, 5000d, 4000d, 50d);
   }
 
   @Test
   public void testConfiguredQuotaEquals() {
-    ConfiguredQuota quota = new ConfiguredQuota("user1", "clientA", 2000., 1000., 50.);
-    Assert.assertEquals(quota, new ConfiguredQuota("user1", "clientA", 2000., 1000., 50.));
-    Assert.assertNotEquals(quota, new ConfiguredQuota("badUser", "clientA", 2000., 1000., 50.));
-    Assert.assertNotEquals(quota, new ConfiguredQuota("user1", "badClient", 2000., 1000., 50.));
-    Assert.assertNotEquals(quota, new ConfiguredQuota("user1", "clientA", 9999., 1000., 50.));
-    Assert.assertNotEquals(quota, new ConfiguredQuota("user1", "clientA", 2000., 9999., 50.));
-    Assert.assertNotEquals(quota, new ConfiguredQuota("user1", "clientA", 2000., 1000., 99.));
+    ConfiguredQuota quota = new ConfiguredQuota("user1", "clientA", 2000d, 1000d, 50d);
+    Assert.assertEquals(quota, new ConfiguredQuota("user1", "clientA", 2000d, 1000d, 50d));
+    Assert.assertNotEquals(quota, new ConfiguredQuota("badUser", "clientA", 2000d, 1000d, 50d));
+    Assert.assertNotEquals(quota, new ConfiguredQuota("user1", "badClient", 2000d, 1000d, 50d));
+    Assert.assertNotEquals(quota, new ConfiguredQuota("user1", "clientA", 9999d, 1000d, 50d));
+    Assert.assertNotEquals(quota, new ConfiguredQuota("user1", "clientA", 2000d, 9999d, 50d));
+    Assert.assertNotEquals(quota, new ConfiguredQuota("user1", "clientA", 2000d, 1000d, 99d));
   }
 }
