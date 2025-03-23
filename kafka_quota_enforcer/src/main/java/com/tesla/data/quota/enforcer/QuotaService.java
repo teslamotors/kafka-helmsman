@@ -88,9 +88,9 @@ public class QuotaService {
 
   private ConfiguredQuota configuredQuota(Map.Entry<String, Properties> quotaEntry, EntityType entityType) {
     Properties quota = quotaEntry.getValue();
-    Integer producerByteRate = getQuotaValue(quota, PRODUCER_BYTE_RATE);
-    Integer consumerByteRate = getQuotaValue(quota, CONSUMER_BYTE_RATE);
-    Integer requestPercentage = getQuotaValue(quota, REQUEST_PERCENTAGE);
+    Double producerByteRate = getQuotaValue(quota, PRODUCER_BYTE_RATE);
+    Double consumerByteRate = getQuotaValue(quota, CONSUMER_BYTE_RATE);
+    Double requestPercentage = getQuotaValue(quota, REQUEST_PERCENTAGE);
 
     switch (entityType) {
       case PRINCIPAL:
@@ -144,7 +144,7 @@ public class QuotaService {
   /**
    * Return the quota value if it exists in the properties, or null if it does not exist.
    */
-  private Integer getQuotaValue(Properties quota, String quotaType) {
-    return quota.get(quotaType) != null ? Integer.valueOf(quota.getProperty(quotaType)) : null;
+  private Double getQuotaValue(Properties quota, String quotaType) {
+    return quota.get(quotaType) != null ? Double.valueOf(quota.getProperty(quotaType)) : null;
   }
 }

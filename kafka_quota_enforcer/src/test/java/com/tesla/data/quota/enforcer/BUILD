@@ -29,6 +29,7 @@ java_test(
     ],
     deps = [
         "//3rdparty/jvm/org/mockito:mockito_core",
+        "//kafka_enforcer_common/src/main/java/com/tesla/data/enforcer",
         "//kafka_quota_enforcer/src/main/java/com/tesla/data/quota/enforcer",
     ],
 )
