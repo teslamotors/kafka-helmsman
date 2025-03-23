@@ -10,9 +10,13 @@ import tesla.shade.com.google.common.base.Objects;
 import tesla.shade.com.google.common.base.Preconditions;
 
 /**
- * ConfiguredQuota represents a quota and its desired configuration.
+ * ConfiguredQuota represents a quota and its desired configuration. Unset quota types return null values. For entity
+ * names such as principal or client, null values indicate unspecified, while ENTITY_DEFAULT expresses default entities.
  */
 public class ConfiguredQuota {
+  // Represents the default for an entity type, such as client or principal.
+  public static final String ENTITY_DEFAULT = "<default>";
+
   private final String principal;
   private final String client;
   @JsonProperty("producer-byte-rate")
