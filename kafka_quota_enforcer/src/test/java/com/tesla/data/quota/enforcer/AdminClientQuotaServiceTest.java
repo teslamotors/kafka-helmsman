@@ -41,7 +41,7 @@ public class AdminClientQuotaServiceTest {
   private ArgumentCaptor<Collection<ClientQuotaAlteration>> captor;
 
   @Before
-  public void init(){
+  public void init() {
     MockitoAnnotations.openMocks(this);
   }
 
@@ -50,7 +50,7 @@ public class AdminClientQuotaServiceTest {
    * A helper function to allow us to initialize a {@link Map} with null values.
    * The static factory does not allow null values, but Kafka API is using null values for specific purposes.
    */
-  private static <K,V> Map<K, V> nullableMap(Collection<Map.Entry<K, V>> entries) {
+  private static <K, V> Map<K, V> nullableMap(Collection<Map.Entry<K, V>> entries) {
     Map<K, V> m = new HashMap<>();
     entries.forEach(e -> m.put(e.getKey(), e.getValue()));
     return m;
@@ -126,6 +126,7 @@ public class AdminClientQuotaServiceTest {
       Assert.assertEquals("check ops for " + e.entity().toString(), e.ops(), a.ops());
     }
   }
+
   @Test
   public void testCreateQuotas() {
     List<ConfiguredQuota> toCreate = List.of(
