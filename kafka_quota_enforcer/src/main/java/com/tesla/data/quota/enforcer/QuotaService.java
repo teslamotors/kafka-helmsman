@@ -6,6 +6,7 @@ package com.tesla.data.quota.enforcer;
 
 import kafka.server.ConfigType;
 import kafka.zk.AdminZkClient;
+import scala.collection.JavaConverters;
 
 import java.util.Collection;
 import java.util.Map;
@@ -14,8 +15,6 @@ import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
-
-import scala.collection.JavaConverters;
 
 public class QuotaService {
   private final AdminZkClient adminClient;
@@ -88,8 +87,8 @@ public class QuotaService {
 
   private ConfiguredQuota configuredQuota(Map.Entry<String, Properties> quotaEntry, EntityType entityType) {
     Properties quota = quotaEntry.getValue();
-    Double producerByteRate = getQuotaValue(quota, PRODUCER_BYTE_RATE);
-    Double consumerByteRate = getQuotaValue(quota, CONSUMER_BYTE_RATE);
+    Integer producerByteRate = getIntegerQuotaValue(quota, PRODUCER_BYTE_RATE);
+    Integer consumerByteRate = getIntegerQuotaValue(quota, CONSUMER_BYTE_RATE);
     Double requestPercentage = getQuotaValue(quota, REQUEST_PERCENTAGE);
 
     switch (entityType) {
@@ -113,10 +112,10 @@ public class QuotaService {
   private Properties quotaProperties(ConfiguredQuota quota) {
     Properties props = new Properties();
     if (quota.getProducerByteRate() != null) {
-      props.put(PRODUCER_BYTE_RATE, String.valueOf(quota.getProducerByteRate()));
+      props.put(PRODUCER_BYTE_RATE, String.valueOf(quota.getProducerByteRate().doubleValue()));
     }
     if (quota.getConsumerByteRate() != null) {
-      props.put(CONSUMER_BYTE_RATE, String.valueOf(quota.getConsumerByteRate()));
+      props.put(CONSUMER_BYTE_RATE, String.valueOf(quota.getConsumerByteRate().doubleValue()));
     }
     if (quota.getRequestPercentage() != null) {
       props.put(REQUEST_PERCENTAGE, String.valueOf(quota.getRequestPercentage()));
@@ -146,5 +145,9 @@ public class QuotaService {
    */
   private Double getQuotaValue(Properties quota, String quotaType) {
     return quota.get(quotaType) != null ? Double.valueOf(quota.getProperty(quotaType)) : null;
+  }
+
+  private Integer getIntegerQuotaValue(Properties quota, String quotaType) {
+    return quota.get(quotaType) != null ? Double.valueOf(quota.getProperty(quotaType)).intValue() : null;
   }
 }

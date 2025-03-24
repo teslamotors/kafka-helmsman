@@ -91,16 +91,20 @@ public class AdminClientQuotaServiceTest {
         new ClientQuotaEntity(Map.of(ClientQuotaEntity.USER, "ignored")), Map.of("unsupported-quota", 1d),
         // entry with unsupported entity types are ignored
         new ClientQuotaEntity(Map.of(ClientQuotaEntity.USER, "user1", "OCCUPATION", "pilot")),
-        Map.of("producer_byte_rate", 3000d, "consumer_byte_rate", 2000d)
+        Map.of("producer_byte_rate", 3000d, "consumer_byte_rate", 2000d),
+        // fractional byte rates are truncated to integers
+        new ClientQuotaEntity(Map.of(ClientQuotaEntity.USER, "fractional")),
+        Map.of("producer_byte_rate", 3000.1, "consumer_byte_rate", 2000.2, "request_percentage", 80.1)
     );
 
     Set<ConfiguredQuota> expected = Set.of(
-        new ConfiguredQuota("user1", "client1", 100d, null, null),
-        new ConfiguredQuota("user1", null, 3000d, 2000d, null),
-        new ConfiguredQuota(null, "client1", 150d, null, 200d),
-        new ConfiguredQuota("<default>", "<default>", 200d, 500d, 80d),
-        new ConfiguredQuota("<default>", null, 7000d, 6000d, null),
-        new ConfiguredQuota(null, "<default>", 5000d, null, null)
+        new ConfiguredQuota("user1", "client1", 100, null, null),
+        new ConfiguredQuota("user1", null, 3000, 2000, null),
+        new ConfiguredQuota(null, "client1", 150, null, 200d),
+        new ConfiguredQuota("<default>", "<default>", 200, 500, 80d),
+        new ConfiguredQuota("<default>", null, 7000, 6000, null),
+        new ConfiguredQuota(null, "<default>", 5000, null, null),
+        new ConfiguredQuota("fractional", null, 3000, 2000, 80.1)
     );
 
     when(adminClient.describeClientQuotas(ClientQuotaFilter.all()))
@@ -130,12 +134,12 @@ public class AdminClientQuotaServiceTest {
   @Test
   public void testCreateQuotas() {
     List<ConfiguredQuota> toCreate = List.of(
-        new ConfiguredQuota("user1", "client1", 101d, null, null),
-        new ConfiguredQuota("user1", "<default>", 100d, null, null),
+        new ConfiguredQuota("user1", "client1", 101, null, null),
+        new ConfiguredQuota("user1", "<default>", 100, null, null),
         new ConfiguredQuota("user2", null, null, null, 40d),
-        new ConfiguredQuota("<default>", null, 7000d, 6000d, null),
-        new ConfiguredQuota(null, "client1", 150d, null, 200d),
-        new ConfiguredQuota(null, "<default>", 5000d, null, null)
+        new ConfiguredQuota("<default>", null, 7000, 6000, null),
+        new ConfiguredQuota(null, "client1", 150, null, 200d),
+        new ConfiguredQuota(null, "<default>", 5000, null, null)
     );
 
     Collection<ClientQuotaAlteration> expected = List.of(
@@ -207,12 +211,12 @@ public class AdminClientQuotaServiceTest {
   @Test
   public void testDeleteQuotas() {
     List<ConfiguredQuota> toDelete = List.of(
-        new ConfiguredQuota("user1", "client1", 101d, null, null),
-        new ConfiguredQuota("user1", "<default>", 100d, null, null),
+        new ConfiguredQuota("user1", "client1", 101, null, null),
+        new ConfiguredQuota("user1", "<default>", 100, null, null),
         new ConfiguredQuota("user2", null, null, null, 40d),
-        new ConfiguredQuota("<default>", null, 7000d, 6000d, null),
-        new ConfiguredQuota(null, "client1", 150d, null, 200d),
-        new ConfiguredQuota(null, "<default>", 5000d, null, null)
+        new ConfiguredQuota("<default>", null, 7000, 6000, null),
+        new ConfiguredQuota(null, "client1", 150, null, 200d),
+        new ConfiguredQuota(null, "<default>", 5000, null, null)
     );
 
     final Collection<ClientQuotaAlteration.Op> CLEAR_ALL = List.of(
