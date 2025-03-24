@@ -60,8 +60,8 @@ public class AdminClientQuotaService {
       // For unspecified quota types, ConfigureQuota returns null. We use such null value directly in
       // ClientQuotaAlternation.Op to clear the quota types in the cluster.
       Collection<ClientQuotaAlteration.Op> ops = List.of(
-          new ClientQuotaAlteration.Op(PRODUCER_BYTE_RATE, q.getProducerByteRate()),
-          new ClientQuotaAlteration.Op(CONSUMER_BYTE_RATE, q.getConsumerByteRate()),
+          new ClientQuotaAlteration.Op(PRODUCER_BYTE_RATE, q.getProducerByteRate() != null ? q.getProducerByteRate().doubleValue() : null),
+          new ClientQuotaAlteration.Op(CONSUMER_BYTE_RATE, q.getConsumerByteRate() != null ? q.getConsumerByteRate().doubleValue() : null),
           new ClientQuotaAlteration.Op(REQUEST_PERCENTAGE, q.getRequestPercentage()));
       return new ClientQuotaAlteration(getClientQuotaEntity(q), ops);
     }).collect(Collectors.toList());
@@ -111,8 +111,8 @@ public class AdminClientQuotaService {
     return new ConfiguredQuota(
         getEntityName(entity, ClientQuotaEntity.USER),
         getEntityName(entity, ClientQuotaEntity.CLIENT_ID),
-        quotas.get(PRODUCER_BYTE_RATE),
-        quotas.get(CONSUMER_BYTE_RATE),
+        quotas.get(PRODUCER_BYTE_RATE) != null ? quotas.get(PRODUCER_BYTE_RATE).intValue() : null,
+        quotas.get(CONSUMER_BYTE_RATE) != null ? quotas.get(CONSUMER_BYTE_RATE).intValue() : null,
         quotas.get(REQUEST_PERCENTAGE));
   }
 

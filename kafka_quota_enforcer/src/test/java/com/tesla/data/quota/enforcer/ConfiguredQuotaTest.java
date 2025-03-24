@@ -20,18 +20,18 @@ public class ConfiguredQuotaTest {
   public void testBadConfiguration() {
     thrown.expect(IllegalArgumentException.class);
     thrown.expectMessage("Invalid quota configuration detected. At least one of 'principal' or 'client' must be provided.");
-    new ConfiguredQuota(null, null, 5000d, 4000d, 50d);
+    new ConfiguredQuota(null, null, 5000, 4000, 50d);
   }
 
   @Test
   public void testConfiguredQuotaEquals() {
-    ConfiguredQuota quota = new ConfiguredQuota("user1", "clientA", 2000d, 1000d, 50d);
-    Assert.assertEquals(quota, new ConfiguredQuota("user1", "clientA", 2000d, 1000d, 50d));
-    Assert.assertNotEquals(quota, new ConfiguredQuota("badUser", "clientA", 2000d, 1000d, 50d));
-    Assert.assertNotEquals(quota, new ConfiguredQuota("user1", "badClient", 2000d, 1000d, 50d));
-    Assert.assertNotEquals(quota, new ConfiguredQuota("user1", "clientA", 9999d, 1000d, 50d));
-    Assert.assertNotEquals(quota, new ConfiguredQuota("user1", "clientA", 2000d, 9999d, 50d));
-    Assert.assertNotEquals(quota, new ConfiguredQuota("user1", "clientA", 2000d, 1000d, 99d));
+    ConfiguredQuota quota = new ConfiguredQuota("user1", "clientA", 2000, 1000, 50d);
+    Assert.assertEquals(quota, new ConfiguredQuota("user1", "clientA", 2000, 1000, 50d));
+    Assert.assertNotEquals(quota, new ConfiguredQuota("badUser", "clientA", 2000, 1000, 50d));
+    Assert.assertNotEquals(quota, new ConfiguredQuota("user1", "badClient", 2000, 1000, 50d));
+    Assert.assertNotEquals(quota, new ConfiguredQuota("user1", "clientA", 9999, 1000, 50d));
+    Assert.assertNotEquals(quota, new ConfiguredQuota("user1", "clientA", 2000, 9999, 50d));
+    Assert.assertNotEquals(quota, new ConfiguredQuota("user1", "clientA", 2000, 1000, 99d));
   }
 
   @Test
@@ -44,7 +44,7 @@ public class ConfiguredQuotaTest {
         "    - principal: user1",
         "      client: float-client",
         "      producer-byte-rate: 2000.0",
-        "      consumer-byte-rate: 1000.0",
+        "      consumer-byte-rate: 1000.1",
         "      request-percentage: 52.7",
         "    - principal: backward-compatible",
         "      client: all-integers",
@@ -56,7 +56,7 @@ public class ConfiguredQuotaTest {
     List<ConfiguredQuota> quotas =
         new BaseCommand<ConfiguredQuota>(config).configuredEntities(ConfiguredQuota.class, "quota", "quotaFile");
     Assert.assertEquals(quotas, List.of(
-        new ConfiguredQuota("user1", "float-client", 2000d, 1000d, 52.7),
-        new ConfiguredQuota("backward-compatible", "all-integers", 2000d, 1000d, 50d)));
+        new ConfiguredQuota("user1", "float-client", 2000, 1000, 52.7),
+        new ConfiguredQuota("backward-compatible", "all-integers", 2000, 1000, 50d)));
   }
 }

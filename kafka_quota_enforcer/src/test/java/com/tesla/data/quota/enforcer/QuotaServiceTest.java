@@ -93,13 +93,13 @@ public class QuotaServiceTest {
         .thenReturn(JavaConverters.mapAsScalaMapConverter(existingClientQuotas).asScala());
 
     List<ConfiguredQuota> expected = new ArrayList<>();
-    expected.add(new ConfiguredQuota("user1", "client1", 100d, null, null));
-    expected.add(new ConfiguredQuota("<default>", "<default>", 200d, 500d, 80d));
-    expected.add(new ConfiguredQuota("user1", null, 3000d, 2000d, null));
+    expected.add(new ConfiguredQuota("user1", "client1", 100, null, null));
+    expected.add(new ConfiguredQuota("<default>", "<default>", 200, 500, 80d));
+    expected.add(new ConfiguredQuota("user1", null, 3000, 2000, null));
     expected.add(new ConfiguredQuota("user2", null, null, null, 40d));
-    expected.add(new ConfiguredQuota("<default>", null, 7000d, 6000d, null));
-    expected.add(new ConfiguredQuota(null, "client1", 150d, null, 200d));
-    expected.add(new ConfiguredQuota(null, "<default>", 5000d, null, null));
+    expected.add(new ConfiguredQuota("<default>", null, 7000, 6000, null));
+    expected.add(new ConfiguredQuota(null, "client1", 150, null, 200d));
+    expected.add(new ConfiguredQuota(null, "<default>", 5000, null, null));
 
     QuotaService svc = new QuotaService(adminClient);
     Collection<ConfiguredQuota> actual = svc.listExisting();
@@ -110,11 +110,11 @@ public class QuotaServiceTest {
   @Test
   public void testCreateQuotas() {
     List<ConfiguredQuota> toCreate = new ArrayList<>();
-    toCreate.add(new ConfiguredQuota("user1", "<default>", 100d, null, null));
+    toCreate.add(new ConfiguredQuota("user1", "<default>", 100, null, null));
     toCreate.add(new ConfiguredQuota("user2", null, null, null, 40d));
-    toCreate.add(new ConfiguredQuota("<default>", null, 7000d, 6000d, null));
-    toCreate.add(new ConfiguredQuota(null, "client1", 150d, null, 200d));
-    toCreate.add(new ConfiguredQuota(null, "<default>", 5000d, null, null));
+    toCreate.add(new ConfiguredQuota("<default>", null, 7000, 6000, null));
+    toCreate.add(new ConfiguredQuota(null, "client1", 150, null, 200d));
+    toCreate.add(new ConfiguredQuota(null, "<default>", 5000, null, null));
 
     QuotaService svc = new QuotaService(adminClient);
     svc.create(toCreate);
@@ -143,11 +143,11 @@ public class QuotaServiceTest {
   @Test
   public void testDeleteQuotas() {
     List<ConfiguredQuota> toDelete = new ArrayList<>();
-    toDelete.add(new ConfiguredQuota("user1", "<default>", 100d, null, null));
+    toDelete.add(new ConfiguredQuota("user1", "<default>", 100, null, null));
     toDelete.add(new ConfiguredQuota("user2", null, null, null, 40d));
-    toDelete.add(new ConfiguredQuota("<default>", null, 7000d, 6000d, null));
-    toDelete.add(new ConfiguredQuota(null, "client1", 150d, null, 200d));
-    toDelete.add(new ConfiguredQuota(null, "<default>", 5000d, null, null));
+    toDelete.add(new ConfiguredQuota("<default>", null, 7000, 6000, null));
+    toDelete.add(new ConfiguredQuota(null, "client1", 150, null, 200d));
+    toDelete.add(new ConfiguredQuota(null, "<default>", 5000, null, null));
 
     QuotaService svc = new QuotaService(adminClient);
     svc.delete(toDelete);
