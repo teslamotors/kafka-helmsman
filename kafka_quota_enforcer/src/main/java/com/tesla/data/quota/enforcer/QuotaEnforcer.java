@@ -11,10 +11,10 @@ import java.util.Collection;
 import java.util.List;
 
 public class QuotaEnforcer extends Enforcer<ConfiguredQuota> {
-  private final QuotaService quotaService;
+  private final AdminClientQuotaService quotaService;
   private final boolean dryRun;
 
-  public QuotaEnforcer(Collection<ConfiguredQuota> configuredQuotas, QuotaService quotaService,
+  public QuotaEnforcer(Collection<ConfiguredQuota> configuredQuotas, AdminClientQuotaService quotaService,
                        boolean safeMode, boolean dryRun) {
     super(configuredQuotas, quotaService::listExisting, ConfiguredQuota::equals, safeMode);
     this.quotaService = quotaService;

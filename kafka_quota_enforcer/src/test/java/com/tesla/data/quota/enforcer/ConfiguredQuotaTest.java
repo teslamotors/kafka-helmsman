@@ -40,7 +40,7 @@ public class ConfiguredQuotaTest {
         "---",
         "kafka:",
         "    bootstrap.servers: localhost:9092",
-        "quota:",
+        "quotas:",
         "    - principal: user1",
         "      client: float-client",
         "      producer-byte-rate: 2000.0",
@@ -54,7 +54,7 @@ public class ConfiguredQuotaTest {
     final BaseCommand.CommandConfigConverter converter = new BaseCommand.CommandConfigConverter();
     Map<String, Object> config = converter.convert(new ByteArrayInputStream(cfg.getBytes(StandardCharsets.UTF_8)));
     List<ConfiguredQuota> quotas =
-        new BaseCommand<ConfiguredQuota>(config).configuredEntities(ConfiguredQuota.class, "quota", "quotaFile");
+        new BaseCommand<ConfiguredQuota>(config).configuredEntities(ConfiguredQuota.class, "quotas", "quotasFile");
     Assert.assertEquals(quotas, List.of(
         new ConfiguredQuota("user1", "float-client", 2000d, 1000d, 52.7),
         new ConfiguredQuota("backward-compatible", "all-integers", 2000d, 1000d, 50d)));

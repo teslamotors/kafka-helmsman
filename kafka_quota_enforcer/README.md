@@ -87,11 +87,9 @@ For the quotas themselves, there are 3 configuration options:
 #### Sample configuration
 
 ```yaml
-zookeeper:
-  connect: "localhost:22181"
-  sessionTimeoutMs: 30000
-  connectionTimeoutMs: 30000
-    
+kafka:
+  bootstrap.servers: "broker1:9092,broker2:9092,broker3:9092"
+
 quotas:
   - principal: user1
     client: clientA
@@ -103,11 +101,9 @@ quotas:
 OR,
 
 ```yaml
-zookeeper:
-  connect: "localhost:22181"
-  sessionTimeoutMs: 30000
-  connectionTimeoutMs: 30000
-    
+kafka:
+  bootstrap.servers: "broker1:9092,broker2:9092,broker3:9092"
+
 quotasFile: /quotas.yaml
 ```
 
@@ -128,10 +124,9 @@ where `/quotas.yaml` has
 To avoid repetition across clusters, the quota enforcer supports multi cluster configuration as well. A sample is shown below,
 
 ```yaml
-zookeeper:
-  connect: "localhost:22181"
-  sessionTimeoutMs: 30000
-  connectionTimeoutMs: 30000
+kafka:
+  bootstrap.servers: "broker1:9092,broker2:9092,broker3:9092"
+
 quotas:
   - principal: user1
     client: clientA
@@ -156,13 +151,11 @@ Note: `quotasFile` supports multi-cluster configuration as well.
 
 # Defaults
 
-At the top-level of the configuration (where you put `zookeeper` and `quotas` or `quotasFile`) we also support setting
+At the top-level of the configuration (where you put `kafka` and `quotas` or `quotasFile`) we also support setting
 `defaults` for either all quotas or per-cluster. For example:
 ```yaml
-zookeeper:
-  connect: "localhost:22181"
-  sessionTimeoutMs: 30000
-  connectionTimeoutMs: 30000
+kafka:
+  bootstrap.servers: "broker1:9092,broker2:9092,broker3:9092"
 
 quotasFile: my-quotas.yaml
 
@@ -186,7 +179,7 @@ Would default to a 4000 `producer-byte-rate` quota for all quotas in all cluster
 "Default" in this context is different from how it is used in the section above. In that section, we allow defining 
 a default quota value such that it can simplify your quota configuration file.
 
-Here, a "default" refers to an actual default quota configuration which is stored behind the scenes in Zookeeper, 
+Here, a "default" refers to an actual default quota configuration which is stored behind the scenes in Kafka configs,
 and is applied as a "default" to matching clients, where override quotas are not specified. 
 You can read more about it here: https://kafka.apache.org/documentation/#design_quotas
 

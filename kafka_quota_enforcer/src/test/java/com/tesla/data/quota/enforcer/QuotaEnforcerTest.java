@@ -17,7 +17,7 @@ import java.util.List;
 
 public class QuotaEnforcerTest {
 
-  private QuotaService quotaService;
+  private AdminClientQuotaService quotaService;
   private static final List<ConfiguredQuota> quotas = Arrays.asList(
       new ConfiguredQuota("user1", "clientA", 5000d, 4000d, 100d),
       new ConfiguredQuota("<default>", null, 6000d, 3000d, null)
@@ -25,7 +25,7 @@ public class QuotaEnforcerTest {
 
   @Before
   public void setup() {
-    quotaService = mock(QuotaService.class);
+    quotaService = mock(AdminClientQuotaService.class);
   }
 
   @Test

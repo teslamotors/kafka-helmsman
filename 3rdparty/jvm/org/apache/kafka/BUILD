@@ -19,7 +19,6 @@ scala_import(
         "//3rdparty/jvm/commons_cli",
         "//3rdparty/jvm/net/sf/jopt_simple",
         "//3rdparty/jvm/net/sourceforge/argparse4j",
-        "//3rdparty/jvm/org/apache/zookeeper",
         "//3rdparty/jvm/org/scala_lang:scala_library",
         "//3rdparty/jvm/org/scala_lang:scala_reflect",
         "//3rdparty/jvm/org/scala_lang/modules:scala_collection_compat_2_12",

@@ -119,13 +119,6 @@ dependencies:
       lang: java
       version: "2.8.1"
 
-  org.apache.zookeeper:
-    zookeeper:
-      exclude:
-        - "org.slf4j:slf4j-log4j12"
-      lang: java
-      version: "3.5.10"
-
   org.bouncycastle:
     bcpkix-jdk15on:
       lang: java

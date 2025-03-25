@@ -82,10 +82,6 @@ public class BaseCommand<T> {
     return MAPPER.convertValue(cmdConfig().get("kafka"), MAP_TYPE);
   }
 
-  public Map<String, Object> zookeeperConfig() {
-    return MAPPER.convertValue(cmdConfig().get("zookeeper"), MAP_TYPE);
-  }
-
   public List<T> configuredEntities(Class<T> toValueType, String entitiesKey, String entitiesFileKey) {
     LOG.info("Config contains, {}: {}, {}: {}",
         entitiesKey, cmdConfig.containsKey(entitiesKey), entitiesFileKey, cmdConfig.containsKey(entitiesFileKey));
@@ -151,14 +147,6 @@ public class BaseCommand<T> {
       System.out.println("Kafka connection: " + kafkaConfig().get("bootstrap.servers"));
       System.out.println("Kafka config looks good!");
     }
-
-    // check Zookeeper configuration
-    if (cmdConfig().containsKey("zookeeper")) {
-      for (String key : zookeeperConfig().keySet()) {
-        System.out.println(format("Zookeeper %s: %s", key, zookeeperConfig().get(key)));
-      }
-      System.out.println("Zookeeper config looks good!");
-    }
     return SUCCESS;
   }
 
@@ -177,8 +165,8 @@ public class BaseCommand<T> {
 
     public Map<String, Object> convert(InputStream is) throws IOException {
       Map<String, Object> cmdConfig = MAPPER.readValue(is, MAP_TYPE);
-      Preconditions.checkArgument(cmdConfig.containsKey("kafka") || cmdConfig.containsKey("zookeeper"),
-          "Missing kafka or zookeeper connection settings from config.");
+      Preconditions.checkArgument(cmdConfig.containsKey("kafka"),
+          "Missing kafka connection settings from config.");
       return cmdConfig;
     }
   }

@@ -8,7 +8,6 @@ java_library(
         "//3rdparty/jvm/com/fasterxml/jackson/core:jackson_annotations",
         "//3rdparty/jvm/org/apache/kafka",
         "//3rdparty/jvm/org/apache/kafka:kafka_clients",
-        "//3rdparty/jvm/org/apache/zookeeper",
         "//3rdparty/jvm/org/scala_lang:scala_library",
         "//3rdparty/jvm/org/slf4j:slf4j_api",
         "//3rdparty/jvm_shaded/com/google/guava_shaded",
