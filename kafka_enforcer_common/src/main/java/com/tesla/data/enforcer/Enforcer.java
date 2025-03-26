@@ -122,12 +122,13 @@ public abstract class Enforcer<T> {
    */
   public void createAbsent() {
     List<T> toCreate = absent();
-    if (!toCreate.isEmpty()) {
-      LOG.info("Creating {} new entities: {}", toCreate.size(), toCreate);
-      create(toCreate);
-    } else {
+    if (toCreate.isEmpty()) {
       LOG.info("No new entity was discovered.");
+      return;
     }
+
+    LOG.info("Creating {} new entities: {}", toCreate.size(), toCreate);
+    create(toCreate);
   }
 
   /**
@@ -137,15 +138,16 @@ public abstract class Enforcer<T> {
     checkState(!safemode, "Deletion is not allowed in safe mode");
     checkState(!configured.isEmpty(), "Configured entities can not be empty");
     List<T> toDelete = unexpected();
+    if (toDelete.isEmpty()) {
+      LOG.info("No un-expected entity was found.");
+      return;
+    }
+
+    LOG.info("Deleting {} redundant entities: {}", toDelete.size(), toDelete);
     float destruction = toDelete.size() * 1.0f / configured.size();
     checkState(destruction <= PERMISSIBLE_DELETION_THRESHOLD,
         "Too many [%s%] entities being deleted in one run", destruction * 100);
-    if (!toDelete.isEmpty()) {
-      LOG.info("Deleting {} redundant entities: {}", toDelete.size(), toDelete);
-      delete(toDelete);
-    } else {
-      LOG.info("No un-expected entity was found.");
-    }
+    delete(toDelete);
   }
 
   /**
