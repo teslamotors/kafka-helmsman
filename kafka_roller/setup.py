@@ -14,7 +14,7 @@ setup(
         "fabric==2.4.0",
         "confluent-kafka==0.11.5",
         "kazoo==2.5.0",
-        "requests==2.32.0",
+        "requests==2.32.4",
     ],
     entry_points={
         "console_scripts": [
