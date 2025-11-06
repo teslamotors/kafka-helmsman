@@ -7,6 +7,7 @@ package com.tesla.data.topic.enforcer;
 import static org.apache.kafka.common.config.ConfigResource.Type.TOPIC;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -145,6 +146,36 @@ public class TopicServiceImplTest {
     Assert.assertEquals("test", ((NewTopic) newTopics.getValue().get(0)).name());
     Assert.assertEquals(2, ((NewTopic) newTopics.getValue().get(0)).replicationFactor());
     Assert.assertTrue(options.getValue().shouldValidateOnly());
+  }
+
+  @Test
+  public void testCreateInBatches() {
+    TopicService service = new TopicServiceImpl(adminClient, true);
+    CreateTopicsResult createTopicsResult = mock(CreateTopicsResult.class);
+    when(createTopicsResult.all()).thenReturn(KafkaFuture.completedFuture(null));
+    when(adminClient.createTopics(any(Collection.class),
+        any(CreateTopicsOptions.class))).thenReturn(createTopicsResult);
+
+    service.create(List.of(
+        new ConfiguredTopic("g1t1", 9_000, (short) 2, Collections.emptyMap()),
+        new ConfiguredTopic("g1t2", 1_000, (short) 2, Collections.emptyMap()),
+        new ConfiguredTopic("g2", 9_000, (short) 2, Collections.emptyMap()),
+        new ConfiguredTopic("g3", 2_000, (short) 2, Collections.emptyMap()),
+        new ConfiguredTopic("g4", 10_000, (short) 2, Collections.emptyMap())));
+
+    ArgumentCaptor<List<NewTopic>> newTopics = ArgumentCaptor.forClass(List.class);
+    verify(adminClient, times(4)).createTopics(newTopics.capture(), any());
+
+    List<List<String>> topicBatches = newTopics.getAllValues().stream().map(
+        l -> l.stream().map(NewTopic::name).toList()).toList();
+    Assert.assertEquals(2, topicBatches.get(0).size());
+    Assert.assertArrayEquals(new String[]{"g1t1", "g1t2"}, topicBatches.get(0).toArray());
+    Assert.assertEquals(1, topicBatches.get(1).size());
+    Assert.assertArrayEquals(new String[]{"g2"}, topicBatches.get(1).toArray());
+    Assert.assertEquals(1, topicBatches.get(2).size());
+    Assert.assertArrayEquals(new String[]{"g3"}, topicBatches.get(2).toArray());
+    Assert.assertEquals(1, topicBatches.get(3).size());
+    Assert.assertArrayEquals(new String[]{"g4"}, topicBatches.get(3).toArray());
   }
 
   @Test
