@@ -8,7 +8,6 @@ java_test(
         "//3rdparty/jvm/org/mockito:mockito_core",
         "//3rdparty/jvm_shaded/com/google/guava_shaded",
         "//kafka_topic_enforcer/src/main/java/com/tesla/data/topic/enforcer",
-        "@junit_junit//jar",
     ],
 )
 
