@@ -30,7 +30,8 @@ import java.util.concurrent.ExecutionException;
 public class TopicServiceImpl implements TopicService {
 
   private static final ListTopicsOptions EXCLUDE_INTERNAL = new ListTopicsOptions().listInternal(false);
-  private static final int MAX_PARTITIONS_PER_CREATE_BATCH = 10_000;
+  // The upper limit of total partitions of each create request. We are leaving a buffer from Kafka's 10k limit.
+  private static final int MAX_PARTITIONS_PER_CREATE_BATCH = 8_000;
 
   private final AdminClient adminClient;
   private final boolean dryRun;

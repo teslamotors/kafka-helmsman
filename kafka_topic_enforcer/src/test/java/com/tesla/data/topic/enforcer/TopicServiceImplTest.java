@@ -157,9 +157,9 @@ public class TopicServiceImplTest {
         any(CreateTopicsOptions.class))).thenReturn(createTopicsResult);
 
     service.create(List.of(
-        new ConfiguredTopic("g1t1", 9_000, (short) 2, Collections.emptyMap()),
+        new ConfiguredTopic("g1t1", 7_000, (short) 2, Collections.emptyMap()),
         new ConfiguredTopic("g1t2", 1_000, (short) 2, Collections.emptyMap()),
-        new ConfiguredTopic("g2", 9_000, (short) 2, Collections.emptyMap()),
+        new ConfiguredTopic("g2", 7_000, (short) 2, Collections.emptyMap()),
         new ConfiguredTopic("g3", 2_000, (short) 2, Collections.emptyMap()),
         new ConfiguredTopic("g4", 10_000, (short) 2, Collections.emptyMap())));
 
