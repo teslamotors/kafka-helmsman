@@ -13,7 +13,6 @@ import org.apache.kafka.clients.admin.Config;
 import org.apache.kafka.clients.admin.ConfigEntry;
 import org.apache.kafka.clients.admin.CreatePartitionsOptions;
 import org.apache.kafka.clients.admin.CreateTopicsOptions;
-import org.apache.kafka.clients.admin.CreateTopicsResult;
 import org.apache.kafka.clients.admin.ListTopicsOptions;
 import org.apache.kafka.clients.admin.NewPartitions;
 import org.apache.kafka.clients.admin.NewTopic;
@@ -31,6 +30,9 @@ import java.util.concurrent.ExecutionException;
 public class TopicServiceImpl implements TopicService {
 
   private static final ListTopicsOptions EXCLUDE_INTERNAL = new ListTopicsOptions().listInternal(false);
+  // The upper limit of total partitions of each create request. We are leaving a buffer from Kafka's 10k limit.
+  private static final int MAX_PARTITIONS_PER_CREATE_BATCH = 8_000;
+
   private final AdminClient adminClient;
   private final boolean dryRun;
 
@@ -117,6 +119,28 @@ public class TopicServiceImpl implements TopicService {
     }
   }
 
+  // Kafka Admin API limits the total partitions for the topics that can be created in each API call. This helper
+  // function splits the topics into batches to create so each API call is within the limit.
+  private void createInBatches(List<NewTopic> topics, CreateTopicsOptions options, int maxPartitionsPerBatch)
+      throws ExecutionException, InterruptedException {
+    int start = 0;
+    int partitionSum = 0;
+    for (int i = 0; i < topics.size(); i++) {
+      partitionSum += topics.get(i).numPartitions();
+      if (partitionSum <= maxPartitionsPerBatch) {
+        continue;
+      }
+
+      // Create the topics in the last batch if the current topic makes the partition sum exceed the limit.
+      adminClient.createTopics(topics.subList(start, i), options).all().get();
+
+      start = i;
+      partitionSum = topics.get(i).numPartitions();
+    }
+    // Create the very last batch of topics.
+    adminClient.createTopics(topics.subList(start, topics.size()), options).all().get();
+  }
+
   @Override
   public void create(List<ConfiguredTopic> topics) {
     try {
@@ -125,8 +149,7 @@ public class TopicServiceImpl implements TopicService {
           .stream()
           .map(t -> new NewTopic(t.getName(), t.getPartitions(), t.getReplicationFactor()).configs(t.getConfig()))
           .collect(toList());
-      CreateTopicsResult result = adminClient.createTopics(newTopics, options);
-      result.all().get();
+      createInBatches(newTopics, options, MAX_PARTITIONS_PER_CREATE_BATCH);
     } catch (InterruptedException | ExecutionException e) {
       // TODO: FA-10109: Improve exception handling
       throw new RuntimeException(e);
