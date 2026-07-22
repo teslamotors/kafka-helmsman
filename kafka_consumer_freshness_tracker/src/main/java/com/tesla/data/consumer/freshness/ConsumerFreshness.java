@@ -44,6 +44,7 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.HashSet;
 
@@ -103,6 +104,10 @@ public class ConsumerFreshness {
             .get().build();
         try (Response response = client.newCall(request).execute()) {
           LOG.info(response.body().string());
+        } finally {
+          // the client's dispatcher and connection pool hold non-daemon threads which would delay JVM exit
+          client.dispatcher().executorService().shutdown();
+          client.connectionPool().evictAll();
         }
         return;
       }
@@ -451,16 +456,31 @@ public class ConsumerFreshness {
     }
   }
 
-  private void stop() {
+  @VisibleForTesting
+  void stop() {
+    // wait for in-flight measurement tasks to finish before touching the consumers below - KafkaConsumer is not
+    // thread-safe, so closing one while a worker task is still polling it is not allowed
     if (this.executor != null) {
       this.executor.shutdown();
-
+      try {
+        if (!this.executor.awaitTermination(30, TimeUnit.SECONDS)) {
+          LOG.warn("Executor did not terminate in time, forcing shutdown");
+          this.executor.shutdownNow();
+        }
+      } catch (InterruptedException e) {
+        this.executor.shutdownNow();
+        Thread.currentThread().interrupt();
+      }
     }
     // stop all the kafka consumers
     if (this.availableWorkers != null) {
       this.availableWorkers.values().stream()
           .flatMap(Collection::stream)
           .forEach(KafkaConsumer::close);
+    }
+    // release the http client's threads and connections
+    if (this.burrow != null) {
+      this.burrow.close();
     }
   }
 
