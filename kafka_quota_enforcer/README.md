@@ -1,4 +1,4 @@
-# Kakfa Quota Enforcer
+# Kafka Quota Enforcer
 
 Kafka quota enforcer's goal is to automate Kafka quota management, in order to mitigate denial-of-service risks and 
 monopolization of broker resources from bad-acting clients.

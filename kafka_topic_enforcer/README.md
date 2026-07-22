@@ -1,4 +1,4 @@
-# Kakfa Topic Enforcer
+# Kafka Topic Enforcer
 
 Kafka topic enforcer's goal is to automate Kafka topic management & hence remove the toil associated with doing it manually.
 
