@@ -193,7 +193,12 @@ public class TopicServiceImpl implements TopicService {
           .stream()
           .map(ConfiguredTopic::getName)
           .collect(toList());
-      adminClient.deleteTopics(names);
+      try {
+        adminClient.deleteTopics(names).all().get();
+      } catch (InterruptedException | ExecutionException e) {
+        // TODO: FA-10109: Improve exception handling
+        throw new RuntimeException(e);
+      }
     }
   }
 
