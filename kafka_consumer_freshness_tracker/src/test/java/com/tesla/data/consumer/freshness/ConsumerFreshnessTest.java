@@ -42,6 +42,7 @@ import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
 /**
@@ -428,6 +429,35 @@ public class ConsumerFreshnessTest {
     thrown.expect(RuntimeException.class);
     thrown.expectCause(org.hamcrest.CoreMatchers.equalTo(cause));
     freshness.run();
+  }
+
+  @Test
+  public void testStopWaitsForInflightTasksBeforeClosingConsumers() throws Exception {
+    Burrow burrow = mock(Burrow.class);
+    KafkaConsumer consumer = mock(KafkaConsumer.class);
+    ListeningExecutorService executor = MoreExecutors.listeningDecorator(Executors.newSingleThreadExecutor());
+    ConsumerFreshness freshness = new ConsumerFreshness();
+    freshness.setupForTesting(burrow, workers("cluster1", consumer), executor);
+
+    // an in-flight measurement task; closing the consumer before it finishes would mean racing a live task
+    AtomicBoolean taskFinished = new AtomicBoolean(false);
+    AtomicBoolean closedWhileTaskInFlight = new AtomicBoolean(false);
+    Mockito.doAnswer(invocation -> {
+      closedWhileTaskInFlight.set(!taskFinished.get());
+      return null;
+    }).when(consumer).close();
+    executor.submit(() -> {
+      Thread.sleep(200);
+      taskFinished.set(true);
+      return null;
+    });
+
+    freshness.stop();
+
+    assertTrue("stop() must wait for in-flight tasks to finish", taskFinished.get());
+    Assert.assertFalse("consumer must not be closed while a task is in flight", closedWhileTaskInFlight.get());
+    Mockito.verify(consumer).close();
+    Mockito.verify(burrow).close();
   }
 
   private void assertNoSuccessfulClusterMeasurement(ConsumerFreshness freshness, String cluster) {
