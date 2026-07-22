@@ -129,4 +129,24 @@ public class TopicEnforcerTest {
     Assert.assertEquals("risky config must be allowed in unsafe mode", configured, enforcer.alterConfiguration());
   }
 
+  @Test
+  public void testReportReplicationFactorDrift() {
+    List<ConfiguredTopic> configured = Arrays.asList(
+        // topic 'a' wants a replication factor of 3, the cluster has 1
+        new ConfiguredTopic("a", 1, (short) 3, Collections.emptyMap()),
+        new ConfiguredTopic("b", 1, (short) 2, Collections.emptyMap()));
+    Map<String, ConfiguredTopic> existing = ImmutableMap.of(
+        "a", new ConfiguredTopic("a", 1, (short) 1, Collections.emptyMap()),
+        "b", new ConfiguredTopic("b", 1, (short) 2, Collections.emptyMap()));
+    when(service.listExisting()).thenReturn(existing);
+    enforcer = new TopicEnforcer(service, configured, true);
+
+    Assert.assertEquals("replication factor drift must be reported",
+        Collections.singletonList(configured.get(0)), enforcer.reportReplicationFactorDrift());
+
+    // reporting must not attempt any enforcement on the cluster
+    verify(service).listExisting();
+    verifyNoMoreInteractions(service);
+  }
+
 }

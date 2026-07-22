@@ -152,10 +152,33 @@ public class TopicEnforcer extends Enforcer<ConfiguredTopic> {
     return toAlter;
   }
 
+  /**
+   * Report topics whose replication factor has drifted from configuration. Kafka does not support
+   * changing the replication factor of an existing topic, so the drift can not be enforced; without
+   * an explicit report the enforcement run would finish silently as if the topic were fully
+   * converged. See https://github.com/teslamotors/kafka-helmsman/issues/18.
+   *
+   * @return a list of topics with replication factor drift
+   */
+  List<ConfiguredTopic> reportReplicationFactorDrift() {
+    List<ConfiguredTopic> drifted =
+        topicsWithConfigDrift(Type.REPLICATION_FACTOR, EnumSet.of(Result.UNSUPPORTED_DRIFT), true);
+    if (!drifted.isEmpty()) {
+      LOG.warn(
+          "Found replication factor drift for {} topics: {}. Kafka does not support altering the "
+              + "replication factor of an existing topic, so this drift can not be enforced. To change "
+              + "it, use a partition reassignment (kafka-reassign-partitions) or recreate the topic.",
+          drifted.size(),
+          drifted.stream().map(ConfiguredTopic::getName).collect(Collectors.toList()));
+    }
+    return drifted;
+  }
+
   @Override
   protected void alterDrifted() {
     increasePartitions();
     alterConfiguration();
+    reportReplicationFactorDrift();
   }
 
   @Override
