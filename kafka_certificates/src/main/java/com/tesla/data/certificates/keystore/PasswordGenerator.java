@@ -37,14 +37,14 @@ public class PasswordGenerator {
     String lowerCaseLetters = RandomStringUtils.random(minLowercase, LOWERCASE_A, LOWERCASE_Z, true, true, null,
         random);
     String specialChar = RandomStringUtils.random(numSpecial, 0, 0, false, false, SPECIAL_CHARS, random);
-    String numbers = RandomStringUtils.randomNumeric(numDigits);
-    String remaining = RandomStringUtils.randomAlphanumeric(remainingLetters);
+    String numbers = RandomStringUtils.random(numDigits, 0, 0, false, true, null, random);
+    String remaining = RandomStringUtils.random(remainingLetters, 0, 0, true, true, null, random);
     String combinedChars = upperCaseLetters.concat(lowerCaseLetters)
         .concat(numbers)
         .concat(specialChar)
         .concat(remaining);
     List<String> chars = Arrays.asList(combinedChars.split(""));
-    Collections.shuffle(chars);
+    Collections.shuffle(chars, random);
     return chars.stream().collect(StringBuilder::new, StringBuilder::append, StringBuilder::append).toString();
   }
 }

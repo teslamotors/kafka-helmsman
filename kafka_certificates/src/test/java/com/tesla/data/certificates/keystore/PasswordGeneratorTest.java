@@ -23,20 +23,29 @@ public class PasswordGeneratorTest {
     int len = 15;
     String pass = GENERATOR.generatePassword(len, 2, 2, 2, 2);
     assertEquals(len, pass.length());
-    assertContainsAll(pass, "J", "L", "+", "*");
+    assertMinCounts(pass, 2, 2, 2, 2);
 
-    // do it again, but should be different b/c of randomness in some letters + scrambling
-    PasswordGenerator gen = new PasswordGenerator(new Random(SEED));
-    String pass2 = gen.generatePassword(len, 2, 2, 2, 2);
+    // do it again with the same generator, should be different b/c of randomness
+    String pass2 = GENERATOR.generatePassword(len, 2, 2, 2, 2);
     assertEquals(len, pass2.length());
-    assertContainsAll(pass2, "J", "L", "+", "*");
+    assertMinCounts(pass2, 2, 2, 2, 2);
     assertNotEquals("Generated the same password twice", pass, pass2);
   }
 
-  private void assertContainsAll(String word, String... letters) {
-    for (String letter : letters) {
-      assertTrue(word.contains(letter));
-    }
+  @Test
+  public void testInjectedRandomIsOnlySourceOfRandomness() {
+    // two generators seeded identically must generate identical passwords; anything
+    // else means part of the password came from an RNG other than the injected one
+    String pass = new PasswordGenerator(new Random(SEED)).generatePassword(15, 2, 2, 2, 2);
+    String pass2 = new PasswordGenerator(new Random(SEED)).generatePassword(15, 2, 2, 2, 2);
+    assertEquals("Same seed should generate the same password", pass, pass2);
+  }
+
+  private void assertMinCounts(String word, int minUppercase, int minLowercase, int minSpecial, int minDigits) {
+    assertTrue(word.chars().filter(Character::isUpperCase).count() >= minUppercase);
+    assertTrue(word.chars().filter(Character::isLowerCase).count() >= minLowercase);
+    assertTrue(word.chars().filter(c -> !Character.isLetterOrDigit(c)).count() >= minSpecial);
+    assertTrue(word.chars().filter(Character::isDigit).count() >= minDigits);
   }
 
   @Test(expected = IllegalArgumentException.class)
