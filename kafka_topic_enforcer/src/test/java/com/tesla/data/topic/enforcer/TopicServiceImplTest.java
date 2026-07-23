@@ -21,7 +21,7 @@ import org.apache.kafka.clients.admin.CreateTopicsOptions;
 import org.apache.kafka.clients.admin.CreateTopicsResult;
 import org.apache.kafka.clients.admin.DescribeConfigsResult;
 import org.apache.kafka.clients.admin.DescribeTopicsResult;
-import org.apache.kafka.clients.admin.KafkaAdminClient;
+import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.clients.admin.ListTopicsOptions;
 import org.apache.kafka.clients.admin.ListTopicsResult;
 import org.apache.kafka.clients.admin.NewPartitions;
@@ -49,11 +49,11 @@ import java.util.Set;
 
 public class TopicServiceImplTest {
 
-  private KafkaAdminClient adminClient;
+  private Admin adminClient;
 
   @Before
   public void setup() {
-    adminClient = mock(KafkaAdminClient.class);
+    adminClient = mock(Admin.class);
   }
 
   @Test

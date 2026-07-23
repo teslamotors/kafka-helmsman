@@ -7,7 +7,7 @@ package com.tesla.data.topic.enforcer;
 import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toMap;
 
-import org.apache.kafka.clients.admin.AdminClient;
+import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.clients.admin.AlterConfigsOptions;
 import org.apache.kafka.clients.admin.Config;
 import org.apache.kafka.clients.admin.ConfigEntry;
@@ -33,10 +33,10 @@ public class TopicServiceImpl implements TopicService {
   // The upper limit of total partitions of each create request. We are leaving a buffer from Kafka's 10k limit.
   private static final int MAX_PARTITIONS_PER_CREATE_BATCH = 8_000;
 
-  private final AdminClient adminClient;
+  private final Admin adminClient;
   private final boolean dryRun;
 
-  public TopicServiceImpl(AdminClient adminClient, boolean dryRun) {
+  public TopicServiceImpl(Admin adminClient, boolean dryRun) {
     this.adminClient = adminClient;
     this.dryRun = dryRun;
   }

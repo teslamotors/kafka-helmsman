@@ -4,7 +4,7 @@
 
 package com.tesla.data.quota.enforcer;
 
-import org.apache.kafka.clients.admin.AdminClient;
+import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.common.quota.ClientQuotaAlteration;
 import org.apache.kafka.common.quota.ClientQuotaEntity;
 import org.apache.kafka.common.quota.ClientQuotaFilter;
@@ -34,9 +34,9 @@ public class AdminClientQuotaService {
   private static final Collection<ClientQuotaAlteration.Op> CLEAR_ALL = SUPPORTED_QUOTA_TYPES.stream().map(t ->
       new ClientQuotaAlteration.Op(t, null)).collect(Collectors.toUnmodifiableList());
 
-  private final AdminClient adminClient;
+  private final Admin adminClient;
 
-  public AdminClientQuotaService(AdminClient adminClient) {
+  public AdminClientQuotaService(Admin adminClient) {
     this.adminClient = adminClient;
   }
 
