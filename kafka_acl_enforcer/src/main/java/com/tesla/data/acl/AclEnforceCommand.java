@@ -8,14 +8,13 @@ import com.tesla.data.acl.mixin.Json;
 import com.tesla.data.enforcer.EnforceCommand;
 import com.tesla.data.enforcer.Enforcer;
 
-import org.apache.kafka.clients.admin.AdminClient;
-import org.apache.kafka.clients.admin.KafkaAdminClient;
+import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.common.acl.AclBinding;
 
 import java.util.Map;
 
 public class AclEnforceCommand extends EnforceCommand<AclBinding> {
-  private AdminClient adminClient;
+  private Admin adminClient;
   static {
     Json.addMixIns(MAPPER);
   }
@@ -35,7 +34,7 @@ public class AclEnforceCommand extends EnforceCommand<AclBinding> {
 
   @Override
   protected Enforcer<AclBinding> initEnforcer() {
-    this.adminClient = KafkaAdminClient.create(kafkaConfig());
+    this.adminClient = Admin.create(kafkaConfig());
     return new AclEnforcer(configuredEntities(AclBinding.class, "acls", "aclsFile"),
         new AclService(adminClient), !unsafemode, dryrun);
   }

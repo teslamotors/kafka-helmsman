@@ -4,7 +4,7 @@
 
 package com.tesla.data.acl;
 
-import org.apache.kafka.clients.admin.AdminClient;
+import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.common.acl.AccessControlEntryFilter;
 import org.apache.kafka.common.acl.AclBinding;
 import org.apache.kafka.common.acl.AclBindingFilter;
@@ -17,9 +17,9 @@ import java.util.stream.Collectors;
 
 public class AclService {
 
-  private final AdminClient adminClient;
+  private final Admin adminClient;
 
-  public AclService(AdminClient adminClient) {
+  public AclService(Admin adminClient) {
     this.adminClient = adminClient;
   }
 

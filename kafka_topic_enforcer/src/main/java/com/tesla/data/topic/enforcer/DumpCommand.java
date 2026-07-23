@@ -8,8 +8,7 @@ import com.tesla.data.enforcer.BaseCommand;
 
 import com.beust.jcommander.Parameters;
 import com.fasterxml.jackson.core.JsonProcessingException;
-import org.apache.kafka.clients.admin.AdminClient;
-import org.apache.kafka.clients.admin.KafkaAdminClient;
+import org.apache.kafka.clients.admin.Admin;
 
 import java.util.Collection;
 import java.util.Comparator;
@@ -22,7 +21,7 @@ public class DumpCommand extends BaseCommand<ConfiguredTopic> {
 
   @Override
   public int run() {
-    try (AdminClient kafka = KafkaAdminClient.create(kafkaConfig())) {
+    try (Admin kafka = Admin.create(kafkaConfig())) {
       TopicService topicService = new TopicServiceImpl(kafka, true);
       Collection<ConfiguredTopic> existing = topicService.listExisting().values()
           .stream()

@@ -8,7 +8,7 @@ import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import org.apache.kafka.clients.admin.AdminClient;
+import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.clients.admin.AlterClientQuotasResult;
 import org.apache.kafka.clients.admin.DescribeClientQuotasResult;
 import org.apache.kafka.common.KafkaFuture;
@@ -35,7 +35,7 @@ import java.util.Set;
 public class AdminClientQuotaServiceTest {
 
   @Mock
-  private AdminClient adminClient;
+  private Admin adminClient;
 
   @Captor
   private ArgumentCaptor<Collection<ClientQuotaAlteration>> captor;
