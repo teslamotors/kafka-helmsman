@@ -85,6 +85,9 @@ clusters:
 The Kafka configs are passed directly to the consumer, so you can add any standard
 [Kafka consumers configs](https://kafka.apache.org/documentation/#newconsumerconfigs) as needed.
 
+`clusters[].name` is the Prometheus `cluster` label. Optional `burrowClusterName` is the Burrow API cluster
+(`/v3/kafka/{name}`) when it differs. If omitted, Burrow uses `name`.
+
 ### Additional Options
 
  * `port`
@@ -108,6 +111,16 @@ The Kafka configs are passed directly to the consumer, so you can add any standa
     * **Default: 15**
       * For smaller clusters or multiple clusters, you will want to adjust this to manage memory allocation (each
       consumer takes a non-trivial chunk of memory, which can add up when monitoring multiple clusters).
+ * `burrowClusterName`
+    * Burrow API cluster (`/v3/kafka/{name}`). Use when it differs from the Prometheus `cluster` label.
+    * **Default: `name`**
+    ```yaml
+    clusters:
+      - name: local-cluster
+        burrowClusterName: remote-burrow
+        kafka:
+          bootstrap.servers: "kafka.example.com:9092"
+    ```
 
 ## Design
 

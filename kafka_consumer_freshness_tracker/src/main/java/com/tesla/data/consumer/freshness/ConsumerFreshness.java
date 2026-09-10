@@ -69,6 +69,7 @@ public class ConsumerFreshness {
   // exposed for testing
   Burrow burrow;
   private Map<String, ArrayBlockingQueue<KafkaConsumer>> availableWorkers;
+  private Map<String, String> metricsClusterByBurrowName = Collections.emptyMap();
   private ListeningExecutorService executor;
 
   public static void main(String[] args) throws IOException, InterruptedException {
@@ -149,10 +150,34 @@ public class ConsumerFreshness {
               for (int i = 0; i < numConsumers; i++) {
                 queue.add(createConsumer(clusterConf));
               }
-              return new AbstractMap.SimpleEntry<>((String) clusterConf.get("name"), queue);
+              return new AbstractMap.SimpleEntry<>(burrowCluster(clusterConf), queue);
             }).collect(Collectors.toMap(AbstractMap.SimpleEntry::getKey, AbstractMap.SimpleEntry::getValue));
+    loadMetricsClusterLabels(conf);
 
     this.executor = MoreExecutors.listeningDecorator(Executors.newFixedThreadPool(workerThreadCount));
+  }
+
+  @VisibleForTesting
+  void loadMetricsClusterLabels(Map<String, Object> conf) {
+    this.metricsClusterByBurrowName = ((List<Map<String, Object>>) conf.get("clusters")).stream()
+        .collect(Collectors.toMap(
+            this::burrowCluster,
+            clusterConf -> (String) clusterConf.get("name")));
+  }
+
+  /**
+   * Burrow API cluster ({@code /v3/kafka/{name}}). Defaults to {@code clusters[].name}.
+   */
+  private String burrowCluster(Map<String, Object> clusterConf) {
+    Object override = clusterConf.get("burrowClusterName");
+    if (override instanceof String && !((String) override).isEmpty()) {
+      return (String) override;
+    }
+    return (String) clusterConf.get("name");
+  }
+
+  private String metricsCluster(String burrowCluster) {
+    return metricsClusterByBurrowName.getOrDefault(burrowCluster, burrowCluster);
   }
 
   /**
@@ -164,12 +189,12 @@ public class ConsumerFreshness {
    * @return a message describing the validation failure, if the config was invalid. Empty otherwise.
    */
   Optional<String> validateClusterConf(Map<String, Object> clusterConf) {
-    final String clusterName = (String) clusterConf.get("name");
+    final String burrowName = burrowCluster(clusterConf);
     final Set<String> bootstrapServersFromBurrow;
     try {
-      bootstrapServersFromBurrow = new HashSet<>(this.burrow.getClusterBootstrapServers(clusterName));
+      bootstrapServersFromBurrow = new HashSet<>(this.burrow.getClusterBootstrapServers(burrowName));
     } catch (IOException e) {
-      this.metrics.burrowClusterDetailReadFailed.labels(clusterName).inc();
+      this.metrics.burrowClusterDetailReadFailed.labels((String) clusterConf.get("name")).inc();
       return Optional.of("failed to read cluster detail from Burrow: " + e.getMessage());
     }
 
@@ -231,7 +256,8 @@ public class ConsumerFreshness {
             }
             return workers != null;
           })
-          .peek(clusterClient -> metrics.lastClusterRunAttempt.labels(clusterClient.getCluster()).setToCurrentTime())
+          .peek(clusterClient -> metrics.lastClusterRunAttempt.labels(metricsCluster(clusterClient.getCluster()))
+              .setToCurrentTime())
           .map(this::measureCluster)
           .forEach(future -> {
             try {
@@ -262,7 +288,7 @@ public class ConsumerFreshness {
       Collections.sort(consumerGroups);
     } catch (IOException e) {
       LOG.error("Failed to read groups from burrow for cluster {}", client.getCluster(), e);
-      metrics.burrowClustersConsumersReadFailed.labels(client.getCluster()).inc();
+      metrics.burrowClustersConsumersReadFailed.labels(metricsCluster(client.getCluster())).inc();
       return Futures.immediateFailedFuture(e);
     }
 
@@ -270,7 +296,7 @@ public class ConsumerFreshness {
     try {
       ArrayBlockingQueue<KafkaConsumer> workers = this.availableWorkers.get(cluster);
       for (String consumerGroup : consumerGroups) {
-        completedConsumers.add(measureConsumer(client, workers, consumerGroup));
+        completedConsumers.add(measureConsumer(client, workers, consumerGroup, metricsCluster(cluster)));
       }
     } catch (InterruptedException e) {
       LOG.error("Interrupted while measuring consumers for {}", client.getCluster(), e);
@@ -308,7 +334,7 @@ public class ConsumerFreshness {
       if (successes > 0) {
         LOG.info("Got freshness for at least one partition for one consumer partition for {} marking the cluster " +
             "successful", cluster);
-        return cluster;
+        return metricsCluster(cluster);
       }
 
       throw new RuntimeException("No single partition for any topic for any consumer for cluster {}" + cluster +
@@ -333,7 +359,8 @@ public class ConsumerFreshness {
    */
   private ListenableFuture<List<PartitionResult>> measureConsumer(Burrow.ClusterClient burrow,
                                                          ArrayBlockingQueue<KafkaConsumer> workers,
-                                                         String consumerGroup) throws InterruptedException {
+                                                         String consumerGroup,
+                                                         String metricsCluster) throws InterruptedException {
     Map<String, Object> status;
     try {
       status = burrow.getConsumerGroupStatus(consumerGroup);
@@ -347,11 +374,11 @@ public class ConsumerFreshness {
       } else {
         LOG.error("Failed to read Burrow status for consumer {}. Skipping", consumerGroup, e);
       }
-      metrics.error.labels(burrow.getCluster(), consumerGroup).inc();
+      metrics.error.labels(metricsCluster, consumerGroup).inc();
       return Futures.immediateFuture(Collections.emptyList());
     } catch (IOException | IllegalStateException e) {
       LOG.error("Failed to read Burrow status for consumer {}. Skipping", consumerGroup, e);
-      metrics.error.labels(burrow.getCluster(), consumerGroup).inc();
+      metrics.error.labels(metricsCluster, consumerGroup).inc();
       return Futures.immediateFuture(Collections.emptyList());
     }
 
@@ -372,7 +399,7 @@ public class ConsumerFreshness {
       long offset = Long.parseLong(end.get("offset").toString());
       boolean upToDate = Long.parseLong(state.get("current_lag").toString()) == 0;
       FreshnessTracker.ConsumerOffset consumerState =
-          new FreshnessTracker.ConsumerOffset(burrow.getCluster(), consumerGroup, topic, partition, offset,
+          new FreshnessTracker.ConsumerOffset(metricsCluster, consumerGroup, topic, partition, offset,
               upToDate);
 
       // wait for a consumer to become available
@@ -403,7 +430,7 @@ public class ConsumerFreshness {
 
         @Override
         public void onFailure(Throwable throwable) {
-          metrics.error.labels(burrow.getCluster(), consumerGroup).inc();
+          metrics.error.labels(metricsCluster, consumerGroup).inc();
           workers.add(consumer);
         }
       }, this.executor);

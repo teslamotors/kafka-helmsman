@@ -11,6 +11,8 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static tesla.shade.com.google.common.collect.Lists.newArrayList;
@@ -397,6 +399,113 @@ public class ConsumerFreshnessTest {
     thrown.expectMessage(expected);
 
     freshness.setupWithBurrow(globalConf, burrow);
+  }
+
+  @Test
+  public void testBurrowClusterNameFromClusterConfKeepsMetricsName() throws Exception {
+    Burrow burrow = mock(Burrow.class);
+    String burrowName = "remote-burrow";
+    String metricsCluster = "local-cluster";
+    when(burrow.getClusterBootstrapServers(burrowName))
+        .thenReturn(Arrays.asList("kafka.example.com:9092"));
+    Burrow.ClusterClient client = mockClusterState(burrowName, "group1",
+        partitionState("topic1", 1, 10, 0));
+    when(burrow.getClusters()).thenReturn(newArrayList(client));
+
+    Map<String, Object> clusterConf = mockConfForCluster(metricsCluster, "kafka.example.com:9092");
+    clusterConf.put("burrowClusterName", burrowName);
+    Map<String, Object> globalConf = new HashMap<>();
+    globalConf.put("clusters", Lists.newArrayList(clusterConf));
+
+    withExecutor(executor -> {
+      KafkaConsumer consumer = mock(KafkaConsumer.class);
+      ConsumerFreshness freshness = new ConsumerFreshness();
+      freshness.loadMetricsClusterLabels(globalConf);
+      freshness.setupForTesting(burrow, workers(burrowName, consumer), executor);
+      freshness.run();
+
+      FreshnessMetrics metrics = freshness.getMetricsForTesting();
+      assertEquals("Freshness metrics use name, not the Burrow cluster name", 0,
+          metrics.freshness.labels(metricsCluster, "group1", "topic1", "1").get(), 0.0);
+      assertSuccessfulClusterMeasurement(freshness, metricsCluster);
+      try {
+        freshness.validateClusterConf(clusterConf);
+        verify(burrow).getClusterBootstrapServers(burrowName);
+        verify(burrow, never()).getClusterBootstrapServers(metricsCluster);
+        verifyNoInteractions(consumer);
+      } catch (Exception e) {
+        throw new RuntimeException(e);
+      }
+    });
+  }
+
+  @Test
+  public void testEmptyBurrowClusterNameFallsBackToName() throws Exception {
+    Burrow burrow = mock(Burrow.class);
+    String clusterName = "local-cluster";
+    Burrow.ClusterClient client = mockClusterState(clusterName, "group1",
+        partitionState("topic1", 1, 10, 0));
+    when(burrow.getClusters()).thenReturn(newArrayList(client));
+
+    Map<String, Object> clusterConf = mockConfForCluster(clusterName, "kafka.example.com:9092");
+    clusterConf.put("burrowClusterName", "");
+    Map<String, Object> globalConf = new HashMap<>();
+    globalConf.put("clusters", Lists.newArrayList(clusterConf));
+
+    withExecutor(executor -> {
+      KafkaConsumer consumer = mock(KafkaConsumer.class);
+      ConsumerFreshness freshness = new ConsumerFreshness();
+      freshness.loadMetricsClusterLabels(globalConf);
+      freshness.setupForTesting(burrow, workers(clusterName, consumer), executor);
+      freshness.run();
+
+      FreshnessMetrics metrics = freshness.getMetricsForTesting();
+      assertEquals("Empty burrowClusterName keeps name for metrics and Burrow", 0,
+          metrics.freshness.labels(clusterName, "group1", "topic1", "1").get(), 0.0);
+      assertSuccessfulClusterMeasurement(freshness, clusterName);
+    });
+  }
+
+  @Test
+  public void testBurrowConsumerGroupReadFailureUsesName() throws Exception {
+    Burrow burrow = mock(Burrow.class);
+    String burrowName = "remote-burrow";
+    String metricsCluster = "local-cluster";
+    Burrow.ClusterClient client = mockClusterState(burrowName, "group1");
+    when(burrow.getClusters()).thenReturn(newArrayList(client));
+    when(client.consumerGroups()).thenThrow(new IOException("injected"));
+
+    Map<String, Object> clusterConf = mockConfForCluster(metricsCluster, "kafka.example.com:9092");
+    clusterConf.put("burrowClusterName", burrowName);
+    Map<String, Object> globalConf = new HashMap<>();
+    globalConf.put("clusters", Lists.newArrayList(clusterConf));
+
+    ConsumerFreshness freshness = new ConsumerFreshness();
+    freshness.loadMetricsClusterLabels(globalConf);
+    freshness.setupForTesting(burrow, workers(burrowName), null);
+    freshness.run();
+    assertEquals(1.0,
+        freshness.getMetricsForTesting().burrowClustersConsumersReadFailed.labels(metricsCluster).get(),
+        0.0);
+    assertNoSuccessfulClusterMeasurement(freshness, metricsCluster);
+  }
+
+  @Test
+  public void testBurrowClusterDetailReadFailedUsesName() throws Exception {
+    Burrow burrow = mock(Burrow.class);
+    String burrowName = "remote-burrow";
+    String metricsCluster = "local-cluster";
+    when(burrow.getClusterBootstrapServers(burrowName)).thenThrow(new IOException("injected"));
+
+    Map<String, Object> conf = mockConfForCluster(metricsCluster, "kafka.example.com:9092");
+    conf.put("burrowClusterName", burrowName);
+
+    ConsumerFreshness freshness = new ConsumerFreshness();
+    freshness.burrow = burrow;
+    Assert.assertTrue(freshness.validateClusterConf(conf).isPresent());
+    Assert.assertEquals(1.0,
+        freshness.getMetricsForTesting().burrowClusterDetailReadFailed.labels(metricsCluster).get(),
+        0.0);
   }
 
   Map<String, Object> mockConfForCluster(String name, String... bootstrapServers) {
