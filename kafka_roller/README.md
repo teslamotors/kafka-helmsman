@@ -1,4 +1,4 @@
-# Kakfa Roller
+# Kafka Roller
 
 Restarting Kafka induces huge toil on the operator, if you do this exercise quite often (config changes, upgrades etc.) – a robust, reliable & cheap to operate implementation can accelerate the rate at which one can push changes to Kafka.
 
@@ -22,7 +22,7 @@ Kafka roller does exactly that -- it allows you to restart any size cluster with
 ## Installation
 
 ```
-pip install git://github.com/teslamotors/kafka-helmsman.git#egg=kafka_roller\&subdirectory=kafka_roller
+pip install "git+https://github.com/teslamotors/kafka-helmsman.git#egg=kafka_roller&subdirectory=kafka_roller"
 ```
 
 OR, from source
