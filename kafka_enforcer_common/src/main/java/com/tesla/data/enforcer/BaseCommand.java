@@ -82,6 +82,16 @@ public class BaseCommand<T> {
     return MAPPER.convertValue(cmdConfig().get("kafka"), MAP_TYPE);
   }
 
+  /**
+   * Get the prefixes of resources owned by an external system, these must never be enforced.
+   *
+   * @return parsed prefixes, {@link UnmanagedPrefixes#NONE} if not configured
+   * @throws IllegalArgumentException if the configuration is malformed
+   */
+  public UnmanagedPrefixes unmanagedPrefixes() {
+    return UnmanagedPrefixes.from(cmdConfig().get(UnmanagedPrefixes.CONFIG_KEY));
+  }
+
   public List<T> configuredEntities(Class<T> toValueType, String entitiesKey, String entitiesFileKey) {
     LOG.info("Config contains, {}: {}, {}: {}",
         entitiesKey, cmdConfig.containsKey(entitiesKey), entitiesFileKey, cmdConfig.containsKey(entitiesFileKey));
@@ -146,6 +156,13 @@ public class BaseCommand<T> {
     if (cmdConfig().containsKey("kafka")) {
       System.out.println("Kafka connection: " + kafkaConfig().get("bootstrap.servers"));
       System.out.println("Kafka config looks good!");
+    }
+    // check unmanaged resources configuration
+    try {
+      System.out.println("Unmanaged prefixes: " + unmanagedPrefixes());
+    } catch (IllegalArgumentException e) {
+      LOG.error("Invalid '{}' config", UnmanagedPrefixes.CONFIG_KEY, e);
+      return FAILURE;
     }
     return SUCCESS;
   }

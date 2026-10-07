@@ -5,6 +5,7 @@
 package com.tesla.data.topic.enforcer;
 
 import com.tesla.data.enforcer.BaseCommand;
+import com.tesla.data.enforcer.UnmanagedPrefixes;
 
 import com.beust.jcommander.Parameters;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -22,8 +23,9 @@ public class DumpCommand extends BaseCommand<ConfiguredTopic> {
 
   @Override
   public int run() {
+    UnmanagedPrefixes unmanaged = unmanagedPrefixes();
     try (AdminClient kafka = KafkaAdminClient.create(kafkaConfig())) {
-      TopicService topicService = new TopicServiceImpl(kafka, true);
+      TopicService topicService = new TopicServiceImpl(kafka, true, unmanaged);
       Collection<ConfiguredTopic> existing = topicService.listExisting().values()
           .stream()
           .sorted(Comparator.comparing(ConfiguredTopic::getName))

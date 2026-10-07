@@ -11,6 +11,8 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.tesla.data.enforcer.UnmanagedPrefixes;
+
 import org.apache.kafka.clients.admin.AlterConfigsOptions;
 import org.apache.kafka.clients.admin.AlterConfigsResult;
 import org.apache.kafka.clients.admin.Config;
@@ -36,9 +38,7 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
-import tesla.shade.com.google.common.collect.ImmutableMap;
 
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -93,39 +93,51 @@ public class TopicServiceImplTest {
         Collections.emptySet(), nodes.get(0));
   }
 
-  @Test
-  public void testListExisting() {
+  // Stub the admin client: 'listed' are all topic names on the cluster, 'described' the names that
+  // listExisting is expected to describe. Describing any other set of names returns null and fails the test.
+  private void stubCluster(Set<String> listed, Set<String> described) {
     Cluster cluster = createCluster(1);
     TopicPartitionInfo tp = new TopicPartitionInfo(0, cluster.nodeById(0), cluster.nodes(), Collections.emptyList());
-    ConfigEntry configEntry = new ConfigEntry("k", "v");
-    KafkaFuture<Config> kfc = KafkaFuture.completedFuture(new Config(Collections.singletonList(configEntry)));
-    Set<String> topicNames = new HashSet<>(Arrays.asList("a", "b", "_c"));
-    Map<String, TopicDescription> tds = ImmutableMap.of(
-        "a", new TopicDescription("a", false, Collections.singletonList(tp)),
-        "b", new TopicDescription("b", false, Collections.singletonList(tp)),
-        "c", new TopicDescription("_c", false, Collections.singletonList(tp))
-    );
-    Map<ConfigResource, KafkaFuture<Config>> configs = ImmutableMap.of(
-        new ConfigResource(TOPIC, "a"), kfc,
-        new ConfigResource(TOPIC, "b"), kfc,
-        new ConfigResource(TOPIC, "_c"), kfc
-    );
-
-    TopicService service = new TopicServiceImpl(adminClient, true);
+    KafkaFuture<Config> kfc =
+        KafkaFuture.completedFuture(new Config(Collections.singletonList(new ConfigEntry("k", "v"))));
+    Map<String, TopicDescription> tds = new HashMap<>();
+    Map<ConfigResource, KafkaFuture<Config>> configs = new HashMap<>();
+    for (String name : described) {
+      tds.put(name, new TopicDescription(name, false, Collections.singletonList(tp)));
+      configs.put(new ConfigResource(TOPIC, name), kfc);
+    }
     ListTopicsResult listTopicsResult = mock(ListTopicsResult.class);
     DescribeTopicsResult describeTopicsResult = mock(DescribeTopicsResult.class);
     DescribeConfigsResult describeConfigsResult = mock(DescribeConfigsResult.class);
-
+    when(listTopicsResult.names()).thenReturn(KafkaFuture.completedFuture(listed));
     when(describeTopicsResult.all()).thenReturn(KafkaFuture.completedFuture(tds));
-    when(listTopicsResult.names()).thenReturn(KafkaFuture.completedFuture(topicNames));
     when(describeConfigsResult.values()).thenReturn(configs);
     when(adminClient.listTopics(any(ListTopicsOptions.class))).thenReturn(listTopicsResult);
-    when(adminClient.describeTopics(topicNames)).thenReturn(describeTopicsResult);
+    when(adminClient.describeTopics(described)).thenReturn(describeTopicsResult);
     when(adminClient.describeConfigs(any(Collection.class))).thenReturn(describeConfigsResult);
+  }
 
-    Map<String, ConfiguredTopic> actual = service.listExisting();
-    Assert.assertEquals(2, actual.size());
-    Assert.assertEquals(new HashSet<>(Arrays.asList("a", "b")), actual.keySet());
+  @Test
+  public void testListExisting() {
+    // '_c' is internal and must not even be described
+    stubCluster(Set.of("a", "b", "_c"), Set.of("a", "b"));
+    TopicService service = new TopicServiceImpl(adminClient, true);
+    Assert.assertEquals(Set.of("a", "b"), service.listExisting().keySet());
+  }
+
+  @Test
+  public void testListExistingSkipsUnmanagedTopics() {
+    stubCluster(Set.of("a", "ext-b", "vendor-c", "_d"), Set.of("a"));
+    UnmanagedPrefixes unmanaged = UnmanagedPrefixes.from(Map.of("topicPrefixes", List.of("ext-", "vendor-")));
+    TopicService service = new TopicServiceImpl(adminClient, true, unmanaged);
+
+    Assert.assertEquals(Set.of("a"), service.listExisting().keySet());
+
+    // unmanaged topics are never described, the enforcer may lack describe rights on them
+    verify(adminClient).describeTopics(Set.of("a"));
+    ArgumentCaptor<Collection> resources = ArgumentCaptor.forClass(Collection.class);
+    verify(adminClient).describeConfigs(resources.capture());
+    Assert.assertEquals(Set.of(new ConfigResource(TOPIC, "a")), new HashSet<>(resources.getValue()));
   }
 
   @Test

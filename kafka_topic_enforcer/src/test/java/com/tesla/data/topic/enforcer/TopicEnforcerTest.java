@@ -9,9 +9,15 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
+import com.tesla.data.enforcer.UnmanagedPrefixes;
+
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
+import org.slf4j.LoggerFactory;
 import tesla.shade.com.google.common.collect.ImmutableMap;
 
 import java.util.Arrays;
@@ -40,6 +46,50 @@ public class TopicEnforcerTest {
         new ConfiguredTopic("topic_a", 1, (short) 1, Collections.emptyMap()),
         new ConfiguredTopic("topic_b", 1, (short) 2, Collections.emptyMap()));
     enforcer = new TopicEnforcer(service, configured, true);
+  }
+
+  private static final UnmanagedPrefixes UNMANAGED =
+      UnmanagedPrefixes.from(Map.of("topicPrefixes", List.of("ext-")));
+
+  @Test(expected = IllegalArgumentException.class)
+  public void testConfiguredUnmanagedTopicRejected() {
+    List<ConfiguredTopic> configured = Arrays.asList(
+        new ConfiguredTopic("ext-orders", 1, (short) 1, Collections.emptyMap()),
+        new ConfiguredTopic("topic_a", 1, (short) 1, Collections.emptyMap()));
+    new TopicEnforcer(service, configured, new ConfigDrift(), UNMANAGED, true);
+  }
+
+  @Test(expected = IllegalArgumentException.class)
+  public void testConfiguredInternalTopicRejectedWithUnmanagedPrefixes() {
+    // '_' stays unmanaged even when other prefixes are configured
+    List<ConfiguredTopic> configured = Arrays.asList(
+        new ConfiguredTopic("_internal", 1, (short) 1, Collections.emptyMap()),
+        new ConfiguredTopic("topic_a", 1, (short) 1, Collections.emptyMap()));
+    new TopicEnforcer(service, configured, new ConfigDrift(), UNMANAGED, true);
+  }
+
+  @Test
+  public void testConfiguredManagedTopicsAcceptedWithUnmanagedPrefixes() {
+    TopicEnforcer enforcer = new TopicEnforcer(service, configured, new ConfigDrift(), UNMANAGED, true);
+    when(service.listExisting()).thenReturn(Collections.emptyMap());
+    Assert.assertEquals(configured, enforcer.absent());
+  }
+
+  @Test
+  public void testLogsEffectiveUnmanagedPrefixes() {
+    // a misspelled 'unmanaged' section is silently ignored, the startup log is how an operator notices
+    Logger logger = (Logger) LoggerFactory.getLogger(TopicEnforcer.class);
+    ListAppender<ILoggingEvent> appender = new ListAppender<>();
+    appender.start();
+    logger.addAppender(appender);
+    try {
+      new TopicEnforcer(service, configured, new ConfigDrift(), UNMANAGED, true);
+    } finally {
+      logger.detachAppender(appender);
+    }
+    Assert.assertTrue(appender.list.stream()
+        .map(ILoggingEvent::getFormattedMessage)
+        .anyMatch("Unmanaged topic prefixes: [ext-, _]"::equals));
   }
 
   @Test

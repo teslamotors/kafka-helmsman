@@ -7,6 +7,7 @@ java_test(
         "//3rdparty/jvm/org/apache/kafka:kafka_clients",
         "//3rdparty/jvm/org/mockito:mockito_core",
         "//3rdparty/jvm_shaded/com/google/guava_shaded",
+        "//kafka_enforcer_common/src/main/java/com/tesla/data/enforcer",
         "//kafka_topic_enforcer/src/main/java/com/tesla/data/topic/enforcer",
     ],
 )
@@ -18,8 +19,11 @@ java_test(
     ],
     deps = [
         "//3rdparty/jvm/ch/qos/logback:logback_classic",
+        "//3rdparty/jvm/ch/qos/logback:logback_core",
         "//3rdparty/jvm/org/mockito:mockito_core",
+        "//3rdparty/jvm/org/slf4j:slf4j_api",
         "//3rdparty/jvm_shaded/com/google/guava_shaded",
+        "//kafka_enforcer_common/src/main/java/com/tesla/data/enforcer",
         "//kafka_topic_enforcer/src/main/java/com/tesla/data/topic/enforcer",
     ],
 )

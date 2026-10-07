@@ -6,15 +6,14 @@ package com.tesla.data.topic.enforcer;
 
 import java.util.List;
 import java.util.Map;
-import java.util.function.Predicate;
 
 /**
  * All kafka interactions go through TopicService.
  */
 public interface TopicService {
 
-  // The internal topic check, '_foo' is an internal topic, 'bar' is not.
-  Predicate<ConfiguredTopic> INTERNAL_TOPIC = x -> x.getName().startsWith("_");
+  // Topics with this prefix, ex: '_foo', are internal and never managed by the enforcer.
+  String INTERNAL_TOPIC_PREFIX = "_";
 
   /**
    * Load existing topics from a kafka cluster.
