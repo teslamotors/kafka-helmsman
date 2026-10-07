@@ -6,6 +6,9 @@ package com.tesla.data.topic.enforcer;
 
 import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toMap;
+import static java.util.stream.Collectors.toSet;
+
+import com.tesla.data.enforcer.UnmanagedPrefixes;
 
 import org.apache.kafka.clients.admin.AdminClient;
 import org.apache.kafka.clients.admin.AlterConfigsOptions;
@@ -35,10 +38,24 @@ public class TopicServiceImpl implements TopicService {
 
   private final AdminClient adminClient;
   private final boolean dryRun;
+  private final UnmanagedPrefixes unmanaged;
 
   public TopicServiceImpl(AdminClient adminClient, boolean dryRun) {
+    this(adminClient, dryRun, UnmanagedPrefixes.NONE);
+  }
+
+  /**
+   * The constructor.
+   *
+   * @param adminClient a kafka admin client
+   * @param dryRun      if true, no changes are made to the cluster
+   * @param unmanaged   prefixes of topics owned by an external system, such topics are never listed;
+   *                    {@link TopicService#INTERNAL_TOPIC_PREFIX} is always unmanaged
+   */
+  public TopicServiceImpl(AdminClient adminClient, boolean dryRun, UnmanagedPrefixes unmanaged) {
     this.adminClient = adminClient;
     this.dryRun = dryRun;
+    this.unmanaged = unmanaged.withTopicPrefix(INTERNAL_TOPIC_PREFIX);
   }
 
   /**
@@ -97,7 +114,11 @@ public class TopicServiceImpl implements TopicService {
   @Override
   public Map<String, ConfiguredTopic> listExisting() {
     try {
-      Set<String> topics = adminClient.listTopics(EXCLUDE_INTERNAL).names().get();
+      // unmanaged topics are dropped before describing them, the enforcer may lack describe rights on them
+      Set<String> topics = adminClient.listTopics(EXCLUDE_INTERNAL).names().get()
+          .stream()
+          .filter(t -> !unmanaged.isUnmanagedTopic(t))
+          .collect(toSet());
       Collection<TopicDescription> topicDescriptions = adminClient.describeTopics(topics).all().get().values();
 
       List<ConfigResource> resources = topics
@@ -110,7 +131,6 @@ public class TopicServiceImpl implements TopicService {
       return topicDescriptions
           .stream()
           .map(td -> configuredTopic(td, topicConfigs.get(new ConfigResource(Type.TOPIC, td.name()))))
-          .filter(t -> !INTERNAL_TOPIC.test(t))
           .collect(toMap(ConfiguredTopic::getName, td -> td));
 
     } catch (InterruptedException | ExecutionException e) {

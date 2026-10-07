@@ -7,6 +7,7 @@ package com.tesla.data.acl;
 import com.tesla.data.acl.mixin.Json;
 import com.tesla.data.enforcer.EnforceCommand;
 import com.tesla.data.enforcer.Enforcer;
+import com.tesla.data.enforcer.UnmanagedPrefixes;
 
 import org.apache.kafka.clients.admin.AdminClient;
 import org.apache.kafka.clients.admin.KafkaAdminClient;
@@ -35,9 +36,11 @@ public class AclEnforceCommand extends EnforceCommand<AclBinding> {
 
   @Override
   protected Enforcer<AclBinding> initEnforcer() {
+    // parse before connecting, so a bad config fails fast
+    UnmanagedPrefixes unmanaged = unmanagedPrefixes();
     this.adminClient = KafkaAdminClient.create(kafkaConfig());
     return new AclEnforcer(configuredEntities(AclBinding.class, "acls", "aclsFile"),
-        new AclService(adminClient), !unsafemode, dryrun);
+        new AclService(adminClient), unmanaged, !unsafemode, dryrun);
   }
 
   @Override

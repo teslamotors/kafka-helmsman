@@ -7,6 +7,7 @@ package com.tesla.data.topic.enforcer;
 import com.tesla.data.enforcer.BaseCommand;
 import com.tesla.data.enforcer.EnforceCommand;
 import com.tesla.data.enforcer.Enforcer;
+import com.tesla.data.enforcer.UnmanagedPrefixes;
 
 import com.beust.jcommander.JCommander;
 import com.beust.jcommander.Parameter;
@@ -24,10 +25,14 @@ public class Main {
 
     @Override
     protected Enforcer<ConfiguredTopic> initEnforcer() {
+      // parse before connecting, so a bad config fails fast
+      UnmanagedPrefixes unmanaged = unmanagedPrefixes();
       this.adminClient = KafkaAdminClient.create(kafkaConfig());
       return new TopicEnforcer(
-          new TopicServiceImpl(adminClient, dryrun),
+          new TopicServiceImpl(adminClient, dryrun, unmanaged),
           configuredEntities(ConfiguredTopic.class, "topics", "topicsFile"),
+          new ConfigDrift(),
+          unmanaged,
           !unsafemode);
     }
 

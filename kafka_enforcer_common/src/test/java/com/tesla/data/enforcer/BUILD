@@ -61,3 +61,13 @@ java_test(
         "//kafka_enforcer_common/src/main/java/com/tesla/data/enforcer",
     ],
 )
+
+java_test(
+    name = "UnmanagedPrefixesTest",
+    srcs = [
+        "UnmanagedPrefixesTest.java",
+    ],
+    deps = [
+        "//kafka_enforcer_common/src/main/java/com/tesla/data/enforcer",
+    ],
+)

@@ -8,8 +8,9 @@ Kafka topic enforcer's goal is to automate Kafka topic management & hence remove
 * Applies uniform central control to topics and enforces best practices consistently (aka idiot proofing) 
 * Self service, removed dependency on a human
 * Simple configuration
-* Internal Kafka topics (with a suffix of underscore `_`) are skipped from enforcement. Good for tools like kminion that
-  needs to manage the topics on its own.
+* Topics owned by other systems can be excluded from enforcement by name prefix, see
+  [Unmanaged topics](#unmanaged-topics). Topics prefixed with an underscore `_` are always excluded, good for tools
+  like kminion that need to manage their topics on their own.
 
 If you choose to use Strimzi Kafka operator, this command can also generate Strimzi KafkaTopic CRDs.
 
@@ -125,6 +126,23 @@ where `/topics.yaml` has
        cleanup.policy: "delete"
        retention.ms: "12000000"
 ```
+
+## Unmanaged topics
+
+Topics owned by other systems can be excluded from enforcement by name prefix:
+
+```yaml
+unmanaged:
+  topicPrefixes: ["ext-", "vendor-"]
+```
+
+* Existing topics whose name starts with `_` or any configured prefix are never deleted, altered or reported, and
+  are omitted from `dump` output. `_` is always excluded, whether or not it is listed.
+* Configured topics must not match these prefixes, the enforcer refuses to start if they do.
+* Prefixes must be non-empty and have no surrounding whitespace. Unknown keys under `unmanaged` fail the run.
+* A misspelled section name (ex: `unmanged`) is not detected. The enforcer logs the effective prefixes at startup
+  (`Unmanaged topic prefixes: [...]`), check that line when rolling out a new configuration.
+* `groupPrefixes` is accepted in the same section but is only used by the ACL enforcer.
 
 ## Multi cluster configuration
 To avoid repetition across clusters, the topic enforcer supports multi cluster configuration as well. A sample is shown below,

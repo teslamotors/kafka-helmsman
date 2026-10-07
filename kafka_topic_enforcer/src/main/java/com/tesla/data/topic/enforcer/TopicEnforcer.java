@@ -7,6 +7,7 @@ package com.tesla.data.topic.enforcer;
 import static tesla.shade.com.google.common.base.Preconditions.checkArgument;
 
 import com.tesla.data.enforcer.Enforcer;
+import com.tesla.data.enforcer.UnmanagedPrefixes;
 import com.tesla.data.topic.enforcer.ConfigDrift.Result;
 import com.tesla.data.topic.enforcer.ConfigDrift.Type;
 
@@ -52,14 +53,38 @@ public class TopicEnforcer extends Enforcer<ConfiguredTopic> {
       List<ConfiguredTopic> configuredTopics,
       ConfigDrift configDrift,
       boolean safemode) {
+    this(topicService, configuredTopics, configDrift, UnmanagedPrefixes.NONE, safemode);
+  }
+
+  /**
+   * The constructor.
+   *
+   * @param topicService     a topic service
+   * @param configuredTopics desired topics, none of them may be unmanaged
+   * @param configDrift      a config drift checker
+   * @param unmanaged        prefixes of topics owned by an external system;
+   *                         {@link TopicService#INTERNAL_TOPIC_PREFIX} is always unmanaged
+   * @param safemode         if true, risky operations (ex: deletion) are skipped
+   */
+  public TopicEnforcer(
+      TopicService topicService,
+      List<ConfiguredTopic> configuredTopics,
+      ConfigDrift configDrift,
+      UnmanagedPrefixes unmanaged,
+      boolean safemode) {
     super(
         configuredTopics,
         () -> topicService.listExisting().values(),
         (t1, t2) -> t1.getName().equals(t2.getName()),
         safemode);
-    checkArgument(
-        configuredTopics.stream().noneMatch(TopicService.INTERNAL_TOPIC),
-        "Internal topics found in config");
+    // a topic has a single owner, managing it here as well would fight with its external owner
+    UnmanagedPrefixes allUnmanaged = unmanaged.withTopicPrefix(TopicService.INTERNAL_TOPIC_PREFIX);
+    LOG.info("Unmanaged topic prefixes: {}", allUnmanaged.topicPrefixes());
+    List<String> unmanagedInConfig = configuredTopics.stream()
+        .map(ConfiguredTopic::getName)
+        .filter(allUnmanaged::isUnmanagedTopic)
+        .collect(Collectors.toList());
+    checkArgument(unmanagedInConfig.isEmpty(), "Unmanaged topics found in config: %s", unmanagedInConfig);
     this.topicService = topicService;
     this.configDrift = configDrift;
     this.configDriftSafetyFilters =

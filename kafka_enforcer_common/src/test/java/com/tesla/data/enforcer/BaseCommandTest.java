@@ -21,6 +21,7 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 public class BaseCommandTest {
 
@@ -198,5 +199,72 @@ public class BaseCommandTest {
     Assert.assertEquals(2, clusterB.size());
     Assert.assertEquals(ImmutableMap.of("k1", "v1", "k2", "v2", "k3", "b3"), clusterB.get(0).config);
     Assert.assertEquals(ImmutableMap.of("k1", "v_default", "k2", "d2", "k3", "b3"), clusterB.get(1).config);
+  }
+
+  @Test
+  public void testUnmanagedPrefixes() throws IOException {
+    String conf = String.join("\n",
+        "---",
+        "kafka:",
+        "  bootstrap.servers: localhost:9092",
+        "unmanaged:",
+        "  topicPrefixes: [\"ext-\", \"vendor-\"]",
+        "  groupPrefixes:",
+        "    - \"extgrp-\"");
+    UnmanagedPrefixes unmanaged = new BaseCommand<Dummy>(converter.convert(confStream(conf))).unmanagedPrefixes();
+    Assert.assertEquals(Set.of("ext-", "vendor-"), unmanaged.topicPrefixes());
+    Assert.assertEquals(Set.of("extgrp-"), unmanaged.groupPrefixes());
+  }
+
+  @Test
+  public void testUnmanagedPrefixesAbsent() throws IOException {
+    Map<String, Object> config = converter.convert(confStream(testConf));
+    Assert.assertSame(UnmanagedPrefixes.NONE, new BaseCommand<Dummy>(config).unmanagedPrefixes());
+  }
+
+  @Test
+  public void testUnmanagedEmptySection() throws IOException {
+    String conf = String.join("\n",
+        "---",
+        "kafka:",
+        "  bootstrap.servers: localhost:9092",
+        "unmanaged:");
+    UnmanagedPrefixes unmanaged = new BaseCommand<Dummy>(converter.convert(confStream(conf))).unmanagedPrefixes();
+    Assert.assertTrue(unmanaged.topicPrefixes().isEmpty());
+    Assert.assertTrue(unmanaged.groupPrefixes().isEmpty());
+  }
+
+  @Test
+  public void testUnmanagedNullPrefixList() throws IOException {
+    String conf = String.join("\n",
+        "---",
+        "kafka:",
+        "  bootstrap.servers: localhost:9092",
+        "unmanaged:",
+        "  topicPrefixes:");
+    UnmanagedPrefixes unmanaged = new BaseCommand<Dummy>(converter.convert(confStream(conf))).unmanagedPrefixes();
+    Assert.assertTrue(unmanaged.topicPrefixes().isEmpty());
+  }
+
+  @Test
+  public void testValidateSucceedsWithUnmanaged() throws IOException {
+    String conf = String.join("\n",
+        "---",
+        "kafka:",
+        "  bootstrap.servers: localhost:9092",
+        "unmanaged:",
+        "  topicPrefixes: [\"ext-\"]");
+    Assert.assertEquals(BaseCommand.SUCCESS, new BaseCommand<Dummy>(converter.convert(confStream(conf))).run());
+  }
+
+  @Test
+  public void testValidateFailsOnInvalidUnmanaged() throws IOException {
+    String conf = String.join("\n",
+        "---",
+        "kafka:",
+        "  bootstrap.servers: localhost:9092",
+        "unmanaged:",
+        "  topicprefixes: [\"ext-\"]");
+    Assert.assertEquals(BaseCommand.FAILURE, new BaseCommand<Dummy>(converter.convert(confStream(conf))).run());
   }
 }
