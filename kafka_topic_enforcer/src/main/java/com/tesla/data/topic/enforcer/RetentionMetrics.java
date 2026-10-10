@@ -18,12 +18,12 @@ import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.common.ConsumerGroupState;
 import org.apache.kafka.common.KafkaFuture;
 import org.apache.kafka.common.TopicPartition;
+import org.apache.kafka.common.TopicPartitionInfo;
 import org.apache.kafka.common.config.ConfigResource;
 import org.apache.kafka.common.errors.UnknownTopicOrPartitionException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -35,7 +35,6 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 /**
  * Exports the retention of every topic and the records consumer groups lost to it, so alerts can compare consumer lag
@@ -63,12 +62,7 @@ public class RetentionMetrics {
   private static final Gauge consumerExpiredRecords =
       Gauge.build()
           .name("kafka_topic_enforcer_consumer_expired_records")
-          .help("Records a consumer group had not read when Kafka deleted them, sampled once per " +
-              "enforcement run: log start offset minus committed offset, summed over the partitions of the topic " +
-              "the group committed; on a partition of that topic the group never committed (for example one added " +
-              "later and never assigned), the log start offset's growth since the enforcer first saw it unread. " +
-              "0 if none. Catches stalled and stopped groups; a live consumer that resets to the log start between " +
-              "two samples is not counted.")
+          .help("Records a consumer group had not read when Kafka deleted them, sampled before each enforcement run.")
           .labelNames("consumer", "topic")
           .register();
 
@@ -77,19 +71,14 @@ public class RetentionMetrics {
    *
    * @param consumerGroups the consumer groups whose expired records are exported (full match)
    */
-  record Options(Pattern consumerGroups) {
-
-    /** Whether the enforcer config turns the retention metrics on, that is, has a {@code retentionMetrics} section. */
-    static boolean enabled(Map<String, Object> config) {
-      return config.containsKey(CONFIG_KEY);
-    }
+  public record Options(Pattern consumerGroups) {
 
     /**
      * Reads the optional {@code retentionMetrics} section of the enforcer config: {@code consumerGroups}, a regular
      * expression (default: all groups). An empty section ({@code retentionMetrics: {}}) turns the metrics on with the
      * defaults.
      */
-    static Options from(Map<String, Object> config) {
+    public static Options from(Map<String, Object> config) {
       Object section = config.get(CONFIG_KEY);
       if (section == null) {
         section = Map.of();
@@ -98,7 +87,10 @@ public class RetentionMetrics {
         throw new IllegalArgumentException(CONFIG_KEY + " must be a map, got " + section);
       }
       Object groups = values.get("consumerGroups");
-      return new Options(Pattern.compile(groups != null ? String.valueOf(groups) : ".*"));
+      if (groups != null && !(groups instanceof String)) {
+        throw new IllegalArgumentException(CONFIG_KEY + ".consumerGroups must be a regular expression, got " + groups);
+      }
+      return new Options(Pattern.compile(groups != null ? (String) groups : ".*"));
     }
   }
 
@@ -110,8 +102,12 @@ public class RetentionMetrics {
   record GroupPartition(String group, TopicPartition partition) {
   }
 
-  /** Expired records per group and topic, and the cause per group whose committed offsets could not be read. */
-  record ExpiredRecords(Map<GroupTopic, Long> values, Map<String, String> failedGroups) {
+  /**
+   * Expired records per group and topic; the cause per group whose committed offsets or assignment could not be read;
+   * and the cause per group and topic whose topic could not be read, while the group's other topics could.
+   */
+  record ExpiredRecords(
+      Map<GroupTopic, Long> values, Map<String, String> failedGroups, Map<GroupTopic, String> failedTopics) {
   }
 
   /**
@@ -139,6 +135,21 @@ public class RetentionMetrics {
     this.expiredRecords = () -> expiredRecords(adminClient, options.consumerGroups(), unreadSince);
   }
 
+  /**
+   * The retention metrics the enforce command should update, or null if they are off.
+   *
+   * @param adminClient reads topic configs, consumer group offsets and log start offsets
+   * @param config the enforcer config, see {@link Options#from(Map)}
+   * @param continuous whether the enforcer runs continuously; the metrics are on only then, and only if the config
+   *     has a {@code retentionMetrics} section
+   */
+  static RetentionMetrics fromConfig(AdminClient adminClient, Map<String, Object> config, boolean continuous) {
+    // a one-shot run has no metrics server to export them
+    return continuous && config.containsKey(CONFIG_KEY)
+        ? new RetentionMetrics(adminClient, Options.from(config))
+        : null;
+  }
+
   // for testing
   RetentionMetrics(Supplier<ActualConfigs> actualConfigs, Supplier<ExpiredRecords> expiredRecords) {
     this.actualConfigs = actualConfigs;
@@ -148,16 +159,14 @@ public class RetentionMetrics {
   /**
    * Update both metrics. Stats run before each enforcement, so this never throws: a metric that cannot be updated
    * keeps its last values.
-   *
-   * @param configured the configured topics, whose desired retention is used when a topic's config cannot be read
    */
-  public void update(Collection<ConfiguredTopic> configured) {
+  public void update() {
     try {
       ActualConfigs actual = actualConfigs.get();
-      Map<String, Double> retention = retentionSeconds(actual.configs(), configured);
-      // topics whose config could not be read and that have no desired retention keep their last values
+      Map<String, Double> retention = retentionSeconds(actual.configs());
+      // topics whose config could not be read keep their last values
       Set<String> kept = exportedRetention.stream()
-          .filter(topic -> actual.failedTopics().containsKey(topic) && !retention.containsKey(topic))
+          .filter(topic -> actual.failedTopics().containsKey(topic))
           .collect(Collectors.toSet());
       Set<String> previous = new HashSet<>(exportedRetention);
       previous.removeAll(kept);
@@ -165,16 +174,16 @@ public class RetentionMetrics {
           topic -> new String[] {topic}));
       exported.addAll(kept);
       exportedRetention = exported;
-      logFailures("topics whose config could not be read, using their desired or last retention",
+      logFailures("topics whose config could not be read, kept their last retention",
           actual.failedTopics());
     } catch (RuntimeException e) {
       LOG.warn("Could not update the topic retention metric", e);
     }
     try {
       ExpiredRecords expired = expiredRecords.get();
-      // groups whose offsets could not be read keep their last values
+      // groups and topics that could not be read keep their last values
       Set<GroupTopic> kept = exportedExpiredRecords.stream()
-          .filter(key -> expired.failedGroups().containsKey(key.group()))
+          .filter(key -> expired.failedGroups().containsKey(key.group()) || expired.failedTopics().containsKey(key))
           .collect(Collectors.toSet());
       Set<GroupTopic> previous = new HashSet<>(exportedExpiredRecords);
       previous.removeAll(kept);
@@ -185,6 +194,10 @@ public class RetentionMetrics {
       logFailures(
           "consumer groups whose offsets or assignment could not be read, kept their last expired records",
           expired.failedGroups());
+      logFailures(
+          "consumer group topics that could not be read, kept their last expired records",
+          expired.failedTopics().entrySet().stream().collect(Collectors.toMap(
+              e -> e.getKey().group() + "/" + e.getKey().topic(), Map.Entry::getValue)));
     } catch (RuntimeException e) {
       LOG.warn("Could not update the consumer group expired records metric", e);
     }
@@ -213,18 +226,14 @@ public class RetentionMetrics {
   }
 
   /**
-   * Retention in seconds of each topic on the cluster, from its actual config, or from its desired config when the
-   * actual one could not be read. Topics with infinite retention or compact-only cleanup are left out.
+   * Retention in seconds of each topic, from its config as the brokers report it. Topics with infinite retention or
+   * compact-only cleanup are left out.
    */
-  static Map<String, Double> retentionSeconds(
-      Map<String, Map<String, String>> actual, Collection<ConfiguredTopic> desired) {
-    Map<String, Map<String, String>> desiredConfigs = desired.stream()
-        .collect(Collectors.toMap(ConfiguredTopic::getName, ConfiguredTopic::getConfig));
+  static Map<String, Double> retentionSeconds(Map<String, Map<String, String>> actual) {
     Map<String, Double> retention = new HashMap<>();
     actual.forEach((topic, config) -> {
-      Map<String, String> fallback = desiredConfigs.getOrDefault(topic, Map.of());
-      String retentionMs = config.getOrDefault(RETENTION_MS, fallback.get(RETENTION_MS));
-      String cleanupPolicy = config.getOrDefault(CLEANUP_POLICY, fallback.getOrDefault(CLEANUP_POLICY, "delete"));
+      String retentionMs = config.get(RETENTION_MS);
+      String cleanupPolicy = config.getOrDefault(CLEANUP_POLICY, "delete");
       if (retentionMs != null && cleanupPolicy.contains("delete") && Long.parseLong(retentionMs) >= 0) {
         retention.put(topic, Long.parseLong(retentionMs) / 1000.0);
       }
@@ -277,9 +286,9 @@ public class RetentionMetrics {
    * Records each consumer group matching groups had not read when Kafka deleted them, per topic: on committed
    * partitions see {@link #expiredRecords(Map, Map)}, on partitions of the same topics the group never committed see
    * {@link #unreadExpired(Map, Map, Map)} (unreadSince holds their state between calls). Only the topics a group
-   * currently reads count, see {@link #currentTopicsOnly(AdminClient, Map, Map)}. A group whose committed offsets,
-   * assignment, topic partitions or log start offsets cannot be read is reported as failed; the whole call fails only
-   * if the groups cannot be listed.
+   * currently reads count, see {@link #currentTopicsOnly(AdminClient, Map, Map)}. A group whose committed offsets or
+   * assignment cannot be read, or that reads a topic whose partitions or log start offsets cannot be read, is reported
+   * as failed; the whole call fails only if the groups cannot be listed.
    */
   static ExpiredRecords expiredRecords(
       AdminClient adminClient, Pattern groups, Map<GroupPartition, Long> unreadSince) {
@@ -287,37 +296,38 @@ public class RetentionMetrics {
       Map<String, String> failedGroups = new HashMap<>();
       Map<String, Map<TopicPartition, Long>> committed =
           currentTopicsOnly(adminClient, committedOffsets(adminClient, groups, failedGroups), failedGroups);
-      Map<String, Set<TopicPartition>> unread = unreadPartitions(adminClient, committed, failedGroups);
-      Set<TopicPartition> partitions = new HashSet<>();
-      committed.values().forEach(offsets -> partitions.addAll(offsets.keySet()));
-      unread.values().forEach(partitions::addAll);
-      Map<TopicPartition, String> failedPartitions = new HashMap<>();
-      Map<TopicPartition, Long> logStart = logStartOffsets(adminClient, partitions, failedPartitions);
-      // a group with a partition whose log start could not be read keeps its last values; the others still update
+      Set<String> topics = committed.values()
+          .stream()
+          .flatMap(offsets -> topicsOf(offsets).stream())
+          .collect(Collectors.toSet());
+      Map<String, String> failedTopics = new HashMap<>();
+      Map<String, Integer> partitionCount = partitionCounts(adminClient, topics, failedTopics);
+      Map<TopicPartition, Long> logStart = logStartOffsets(adminClient, partitionCount, failedTopics);
+      // a topic that could not be read keeps its last values for the groups reading it; their other topics update
+      Map<GroupTopic, String> failedGroupTopics = new HashMap<>();
       Map<String, Map<TopicPartition, Long>> readable = new HashMap<>();
       Map<String, Set<TopicPartition>> readableUnread = new HashMap<>();
       committed.forEach((group, offsets) -> {
         if (failedGroups.containsKey(group)) {
           return;
         }
-        Set<TopicPartition> groupUnread = unread.getOrDefault(group, Set.of());
-        Optional<TopicPartition> failed = Stream.concat(offsets.keySet().stream(), groupUnread.stream())
-            .filter(failedPartitions::containsKey)
-            .findFirst();
-        if (failed.isPresent()) {
-          failedGroups.put(group,
-              "log start offset of " + failed.get() + " could not be read: " + failedPartitions.get(failed.get()));
-        } else {
-          readable.put(group, offsets);
-          readableUnread.put(group, groupUnread);
+        Map<TopicPartition, Long> readableOffsets = new HashMap<>(offsets);
+        for (String topic : topicsOf(offsets)) {
+          if (failedTopics.containsKey(topic)) {
+            failedGroupTopics.put(new GroupTopic(group, topic), failedTopics.get(topic));
+            readableOffsets.keySet().removeIf(partition -> partition.topic().equals(topic));
+          }
         }
+        readable.put(group, readableOffsets);
+        readableUnread.put(group, unreadPartitions(readableOffsets, partitionCount));
       });
-      // failed groups keep their state, like their exported values; groups that are gone drop theirs
+      // failed groups and topics keep their state, like their exported values; groups and topics that are gone drop it
       unreadSince.keySet().removeIf(key -> !failedGroups.containsKey(key.group()) &&
+          !failedGroupTopics.containsKey(new GroupTopic(key.group(), key.partition().topic())) &&
           !readableUnread.getOrDefault(key.group(), Set.of()).contains(key.partition()));
       Map<GroupTopic, Long> values = new HashMap<>(expiredRecords(readable, logStart));
       unreadExpired(readableUnread, logStart, unreadSince).forEach((key, value) -> values.merge(key, value, Long::sum));
-      return new ExpiredRecords(values, failedGroups);
+      return new ExpiredRecords(values, failedGroups, failedGroupTopics);
     } catch (InterruptedException e) {
       Thread.currentThread().interrupt();
       throw new RuntimeException(e);
@@ -363,57 +373,57 @@ public class RetentionMetrics {
     return expired;
   }
 
-  // The partitions of the topics each group reads (the topics of its committed offsets) that it has never committed:
-  // partitions it was never assigned, such as ones added to the topic later. Deleted topics have none; a group
-  // reading a topic that cannot be described goes to failedGroups.
-  private static Map<String, Set<TopicPartition>> unreadPartitions(
-      AdminClient adminClient, Map<String, Map<TopicPartition, Long>> committed, Map<String, String> failedGroups)
-      throws InterruptedException {
-    Set<String> topics = committed.values()
-        .stream()
-        .flatMap(offsets -> offsets.keySet().stream())
-        .map(TopicPartition::topic)
-        .collect(Collectors.toSet());
+  private static Set<String> topicsOf(Map<TopicPartition, Long> offsets) {
+    return offsets.keySet().stream().map(TopicPartition::topic).collect(Collectors.toSet());
+  }
+
+  // The partitions of the topics a group reads (the topics of its committed offsets) that it has never committed:
+  // partitions it was never assigned, such as ones added to the topic later. Deleted topics have none.
+  private static Set<TopicPartition> unreadPartitions(
+      Map<TopicPartition, Long> offsets, Map<String, Integer> partitionCount) {
+    Set<TopicPartition> unread = new HashSet<>();
+    for (String topic : topicsOf(offsets)) {
+      for (int p = 0; p < partitionCount.getOrDefault(topic, 0); p++) {
+        TopicPartition partition = new TopicPartition(topic, p);
+        if (!offsets.containsKey(partition)) {
+          unread.add(partition);
+        }
+      }
+    }
+    return unread;
+  }
+
+  // The partition count of each topic. Deleted topics are left out. A topic that cannot be described, or that has a
+  // partition without a leader, goes to failedTopics: kafka-clients 2.8 fails every partition of a listOffsets call
+  // when any topic in it has a partition without a leader.
+  private static Map<String, Integer> partitionCounts(
+      AdminClient adminClient, Set<String> topics, Map<String, String> failedTopics) throws InterruptedException {
     if (topics.isEmpty()) {
       return Map.of();
     }
     Map<String, KafkaFuture<TopicDescription>> described = adminClient.describeTopics(topics).values();
     Map<String, Integer> partitionCount = new HashMap<>();
-    Map<String, String> failedTopics = new HashMap<>();
     for (String topic : topics) {
       try {
-        partitionCount.put(topic, described.get(topic).get().partitions().size());
+        List<TopicPartitionInfo> partitions = described.get(topic).get().partitions();
+        Optional<TopicPartitionInfo> leaderless = partitions.stream().filter(p -> p.leader() == null).findFirst();
+        if (leaderless.isPresent()) {
+          failedTopics.put(topic, "has no leader for partition " + leaderless.get().partition());
+        } else {
+          partitionCount.put(topic, partitions.size());
+        }
       } catch (ExecutionException e) {
         if (!(e.getCause() instanceof UnknownTopicOrPartitionException)) {
-          failedTopics.put(topic, String.valueOf(e.getCause()));
+          failedTopics.put(topic, "could not be described: " + e.getCause());
         }
       }
     }
-    Map<String, Set<TopicPartition>> unread = new HashMap<>();
-    committed.forEach((group, offsets) -> {
-      Set<String> groupTopics = offsets.keySet().stream().map(TopicPartition::topic).collect(Collectors.toSet());
-      Optional<String> failed = groupTopics.stream().filter(failedTopics::containsKey).findFirst();
-      if (failed.isPresent()) {
-        failedGroups.put(group,
-            "topic " + failed.get() + " could not be described: " + failedTopics.get(failed.get()));
-        return;
-      }
-      Set<TopicPartition> groupUnread = new HashSet<>();
-      for (String topic : groupTopics) {
-        for (int p = 0; p < partitionCount.getOrDefault(topic, 0); p++) {
-          TopicPartition partition = new TopicPartition(topic, p);
-          if (!offsets.containsKey(partition)) {
-            groupUnread.add(partition);
-          }
-        }
-      }
-      unread.put(group, groupUnread);
-    });
-    return unread;
+    return partitionCount;
   }
 
-  // The committed offsets of each consumer group matching groups, partitions without a committed offset are left out;
-  // groups whose offsets cannot be read go to failedGroups. This client version fetches one group per request, so all
+  // The committed offsets of each consumer group matching groups, partitions without a committed offset are left out,
+  // and so are groups that have none: they have nothing to count. Groups whose offsets cannot be read go to
+  // failedGroups. This client version fetches one group per request, so all
   // requests are sent before waiting on any.
   private static Map<String, Map<TopicPartition, Long>> committedOffsets(
       AdminClient adminClient, Pattern groups, Map<String, String> failedGroups)
@@ -434,7 +444,9 @@ public class RetentionMetrics {
             offsets.put(partition, offset.offset());
           }
         });
-        committed.put(e.getKey(), offsets);
+        if (!offsets.isEmpty()) {
+          committed.put(e.getKey(), offsets);
+        }
       } catch (ExecutionException ex) {
         failedGroups.put(e.getKey(), String.valueOf(ex.getCause()));
       }
@@ -482,23 +494,34 @@ public class RetentionMetrics {
     return current;
   }
 
-  // One request per partition leader. Partitions of deleted topics that groups still have offsets for are left out;
-  // partitions that fail otherwise go to failedPartitions with the cause.
+  // The log start offset of every partition of the given topics, with one listOffsets call per topic, all sent before
+  // waiting on any: kafka-clients 2.8 fails a whole call, after its API timeout, when the metadata of any topic in it
+  // has an error, so a topic deleted or left without a leader meanwhile only fails its own call. Topics deleted
+  // meanwhile are left out; a topic whose offsets cannot be read goes to failedTopics.
   private static Map<TopicPartition, Long> logStartOffsets(
-      AdminClient adminClient, Set<TopicPartition> partitions, Map<TopicPartition, String> failedPartitions)
+      AdminClient adminClient, Map<String, Integer> partitionCount, Map<String, String> failedTopics)
       throws InterruptedException {
-    if (partitions.isEmpty()) {
-      return Map.of();
-    }
-    ListOffsetsResult result = adminClient.listOffsets(
-        partitions.stream().collect(Collectors.toMap(Function.identity(), partition -> OffsetSpec.earliest())));
+    Map<String, ListOffsetsResult> results = new HashMap<>();
+    partitionCount.forEach((topic, count) -> {
+      Map<TopicPartition, OffsetSpec> request = new HashMap<>();
+      for (int p = 0; p < count; p++) {
+        request.put(new TopicPartition(topic, p), OffsetSpec.earliest());
+      }
+      results.put(topic, adminClient.listOffsets(request));
+    });
     Map<TopicPartition, Long> logStart = new HashMap<>();
-    for (TopicPartition partition : partitions) {
+    for (Map.Entry<String, ListOffsetsResult> e : results.entrySet()) {
+      String topic = e.getKey();
+      Map<TopicPartition, Long> offsets = new HashMap<>();
       try {
-        logStart.put(partition, result.partitionResult(partition).get().offset());
-      } catch (ExecutionException e) {
-        if (!(e.getCause() instanceof UnknownTopicOrPartitionException)) {
-          failedPartitions.put(partition, String.valueOf(e.getCause()));
+        for (int p = 0; p < partitionCount.get(topic); p++) {
+          TopicPartition partition = new TopicPartition(topic, p);
+          offsets.put(partition, e.getValue().partitionResult(partition).get().offset());
+        }
+        logStart.putAll(offsets);
+      } catch (ExecutionException ex) {
+        if (!(ex.getCause() instanceof UnknownTopicOrPartitionException)) {
+          failedTopics.put(topic, "log start offsets could not be read: " + ex.getCause());
         }
       }
     }

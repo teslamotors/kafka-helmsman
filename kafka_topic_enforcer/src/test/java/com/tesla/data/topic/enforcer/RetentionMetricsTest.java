@@ -6,12 +6,14 @@ package com.tesla.data.topic.enforcer;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -68,14 +70,12 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class RetentionMetricsTest {
 
   private static final Pattern GROUPS = Pattern.compile("app\\..*");
-
-  private static ConfiguredTopic topic(String name, Map<String, String> config) {
-    return new ConfiguredTopic(name, 1, (short) 1, config);
-  }
 
   private static Double exported(String topic) {
     return CollectorRegistry.defaultRegistry.getSampleValue(
@@ -97,7 +97,7 @@ public class RetentionMetricsTest {
   }
 
   private static RetentionMetrics metrics(Supplier<Map<String, Map<String, String>>> actual) {
-    return metrics(actual, () -> new ExpiredRecords(Map.of(), Map.of()));
+    return metrics(actual, () -> new ExpiredRecords(Map.of(), Map.of(), Map.of()));
   }
 
   private static ConsumerGroupDescription group(String id, ConsumerGroupState state, TopicPartition... assigned) {
@@ -118,6 +118,12 @@ public class RetentionMetricsTest {
 
   // describeTopics answers with the given partition counts; other topics are unknown (deleted)
   private static void partitions(AdminClient adminClient, Map<String, Integer> counts) {
+    partitions(adminClient, counts, Set.of());
+  }
+
+  // as above; the leaderless partitions have no leader, which describeTopics reports as a null leader
+  private static void partitions(
+      AdminClient adminClient, Map<String, Integer> counts, Set<TopicPartition> leaderless) {
     when(adminClient.describeTopics(anyCollection())).thenAnswer(invocation -> {
       Map<String, KafkaFuture<TopicDescription>> described = new HashMap<>();
       for (Object topic : (Collection<?>) invocation.getArgument(0)) {
@@ -125,7 +131,8 @@ public class RetentionMetricsTest {
         if (counts.containsKey(name)) {
           List<TopicPartitionInfo> infos = new ArrayList<>();
           for (int p = 0; p < counts.get(name); p++) {
-            infos.add(new TopicPartitionInfo(p, new Node(1, "broker", 9092), List.of(), List.of()));
+            Node leader = leaderless.contains(new TopicPartition(name, p)) ? null : new Node(1, "broker", 9092);
+            infos.add(new TopicPartitionInfo(p, leader, List.of(), List.of()));
           }
           described.put(name, KafkaFuture.completedFuture(new TopicDescription(name, false, infos)));
         } else {
@@ -146,20 +153,120 @@ public class RetentionMetricsTest {
     return new ListOffsetsResult(futures);
   }
 
-  @Test
-  public void testActualRetentionWinsOverDesired() {
-    Map<String, Double> retention = RetentionMetrics.retentionSeconds(
-        Map.of("a", Map.of("retention.ms", "86400000", "cleanup.policy", "delete")),
-        List.of(topic("a", Map.of("retention.ms", "604800000"))));
-    assertEquals(Map.of("a", 86400.0), retention);
+  // listOffsets as kafka-clients 2.8 answers it: if any topic in the call is unknown or has a partition without a
+  // leader, the client retries its metadata lookup until the API timeout, then fails every partition in the call
+  private static void logStartsAsKafka28(
+      AdminClient adminClient, Map<TopicPartition, Long> starts, Set<String> unavailableTopics) {
+    when(adminClient.listOffsets(anyMap())).thenAnswer(invocation -> {
+      Map<TopicPartition, ?> requested = invocation.getArgument(0);
+      boolean timesOut = requested.keySet().stream().anyMatch(p -> unavailableTopics.contains(p.topic()));
+      Map<TopicPartition, KafkaFuture<ListOffsetsResultInfo>> futures = new HashMap<>();
+      for (TopicPartition partition : requested.keySet()) {
+        if (timesOut) {
+          KafkaFutureImpl<ListOffsetsResultInfo> timedOut = new KafkaFutureImpl<>();
+          timedOut.completeExceptionally(new TimeoutException("Timed out waiting for a node assignment."));
+          futures.put(partition, timedOut);
+        } else {
+          futures.put(partition, KafkaFuture.completedFuture(
+              new ListOffsetsResultInfo(starts.get(partition), -1L, Optional.empty())));
+        }
+      }
+      return new ListOffsetsResult(futures);
+    });
+  }
+
+  private static void lists(AdminClient adminClient, String... groups) {
+    ListConsumerGroupsResult listed = mock(ListConsumerGroupsResult.class);
+    when(listed.all()).thenReturn(KafkaFuture.completedFuture(
+        Stream.of(groups).map(group -> new ConsumerGroupListing(group, false)).collect(Collectors.toList())));
+    when(adminClient.listConsumerGroups()).thenReturn(listed);
+  }
+
+  private static void commits(AdminClient adminClient, String group, Map<TopicPartition, Long> offsets) {
+    Map<TopicPartition, OffsetAndMetadata> committed = new HashMap<>();
+    offsets.forEach((partition, offset) -> committed.put(partition, new OffsetAndMetadata(offset)));
+    ListConsumerGroupOffsetsResult result = mock(ListConsumerGroupOffsetsResult.class);
+    when(result.partitionsToOffsetAndMetadata()).thenReturn(KafkaFuture.completedFuture(committed));
+    when(adminClient.listConsumerGroupOffsets(group)).thenReturn(result);
   }
 
   @Test
-  public void testDesiredRetentionWhenActualConfigWasNotRead() {
+  public void testExpiredRecordsSurviveDeletedTopicsAndPartitionsWithoutLeader() {
+    TopicPartition healthy = new TopicPartition("healthy", 0);
+    TopicPartition offline = new TopicPartition("offline", 0);
+    TopicPartition deleted = new TopicPartition("deleted", 0);
+    AdminClient adminClient = mock(AdminClient.class);
+    lists(adminClient, "app.reads_offline", "app.reads_deleted");
+    commits(adminClient, "app.reads_offline", Map.of(healthy, 10L, offline, 10L));
+    commits(adminClient, "app.reads_deleted", Map.of(healthy, 20L, deleted, 5L));
+    describes(adminClient,
+        group("app.reads_offline", ConsumerGroupState.EMPTY), group("app.reads_deleted", ConsumerGroupState.EMPTY));
+    partitions(adminClient, Map.of("healthy", 1, "offline", 1), Set.of(offline));
+    logStartsAsKafka28(adminClient, Map.of(healthy, 30L, offline, 40L, deleted, 50L), Set.of("offline", "deleted"));
+
+    ExpiredRecords expired = RetentionMetrics.expiredRecords(adminClient, GROUPS, new HashMap<>());
+    assertEquals(Map.of(
+        new GroupTopic("app.reads_deleted", "healthy"), 10L,
+        new GroupTopic("app.reads_offline", "healthy"), 20L), expired.values());
+    assertEquals(Map.of(), expired.failedGroups());
+    assertEquals(Set.of(new GroupTopic("app.reads_offline", "offline")), expired.failedTopics().keySet());
+    // neither is asked for: each would make its call wait for the API timeout
+    @SuppressWarnings("unchecked")
+    ArgumentCaptor<Map<TopicPartition, OffsetSpec>> requested = ArgumentCaptor.forClass(Map.class);
+    verify(adminClient, atLeastOnce()).listOffsets(requested.capture());
+    assertEquals(Set.of("healthy"), requested.getAllValues()
+        .stream()
+        .flatMap(request -> request.keySet().stream())
+        .map(TopicPartition::topic)
+        .collect(Collectors.toSet()));
+  }
+
+  @Test
+  public void testATopicThatLosesItsLeaderAfterBeingDescribedFailsOnlyItself() {
+    TopicPartition healthy = new TopicPartition("healthy", 0);
+    TopicPartition lost = new TopicPartition("lost_leader", 0);
+    AdminClient adminClient = mock(AdminClient.class);
+    lists(adminClient, "app.a");
+    commits(adminClient, "app.a", Map.of(healthy, 10L, lost, 10L));
+    describes(adminClient, group("app.a", ConsumerGroupState.EMPTY));
+    // described with a leader, gone by the time its log start offsets are read
+    partitions(adminClient, Map.of("healthy", 1, "lost_leader", 1));
+    logStartsAsKafka28(adminClient, Map.of(healthy, 30L, lost, 40L), Set.of("lost_leader"));
+
+    ExpiredRecords expired = RetentionMetrics.expiredRecords(adminClient, GROUPS, new HashMap<>());
+    assertEquals(Map.of(new GroupTopic("app.a", "healthy"), 20L), expired.values());
+    assertEquals(Set.of(new GroupTopic("app.a", "lost_leader")), expired.failedTopics().keySet());
+  }
+
+  @Test
+  public void testUnreadPartitionsKeepTheirStateWhileTheirTopicCannotBeRead() {
+    TopicPartition read = new TopicPartition("events", 0);
+    TopicPartition unread = new TopicPartition("events", 1);
+    AdminClient adminClient = mock(AdminClient.class);
+    lists(adminClient, "app.a");
+    commits(adminClient, "app.a", Map.of(read, 10L));
+    describes(adminClient, group("app.a", ConsumerGroupState.EMPTY));
+    Map<GroupPartition, Long> since = new HashMap<>();
+
+    partitions(adminClient, Map.of("events", 2));
+    when(adminClient.listOffsets(anyMap())).thenReturn(logStarts(Map.of(read, 10L, unread, 0L)));
+    RetentionMetrics.expiredRecords(adminClient, GROUPS, since);
+
+    // the topic loses a leader for a run: no values, but the unread partition's starting point is kept
+    partitions(adminClient, Map.of("events", 2), Set.of(read));
+    RetentionMetrics.expiredRecords(adminClient, GROUPS, since);
+
+    partitions(adminClient, Map.of("events", 2));
+    when(adminClient.listOffsets(anyMap())).thenReturn(logStarts(Map.of(read, 10L, unread, 40L)));
+    assertEquals(Map.of(new GroupTopic("app.a", "events"), 40L),
+        RetentionMetrics.expiredRecords(adminClient, GROUPS, since).values());
+  }
+
+  @Test
+  public void testRetentionFromTheBrokerConfig() {
     Map<String, Double> retention = RetentionMetrics.retentionSeconds(
-        Map.of("a", Map.of()),
-        List.of(topic("a", Map.of("retention.ms", "3600000"))));
-    assertEquals(Map.of("a", 3600.0), retention);
+        Map.of("a", Map.of("retention.ms", "86400000", "cleanup.policy", "delete")));
+    assertEquals(Map.of("a", 86400.0), retention);
   }
 
   @Test
@@ -169,8 +276,7 @@ public class RetentionMetricsTest {
             "infinite", Map.of("retention.ms", "-1", "cleanup.policy", "delete"),
             "compacted", Map.of("retention.ms", "604800000", "cleanup.policy", "compact"),
             "compacted_and_deleted", Map.of("retention.ms", "604800000", "cleanup.policy", "compact,delete"),
-            "unknown", Map.of()),
-        List.of(topic("not_created_yet", Map.of("retention.ms", "3600000"))));
+            "unknown", Map.of()));
     assertEquals(Map.of("compacted_and_deleted", 604800.0), retention);
   }
 
@@ -179,15 +285,14 @@ public class RetentionMetricsTest {
     AtomicReference<Map<String, Map<String, String>>> actual = new AtomicReference<>(Map.of(
         "stats_a", Map.of("retention.ms", "86400000"),
         "stats_b", Map.of("retention.ms", "259200000")));
-    List<ConfiguredTopic> configured = List.of(topic("stats_a", Map.of()), topic("stats_b", Map.of()));
     RetentionMetrics metrics = metrics(actual::get);
 
-    metrics.update(configured);
+    metrics.update();
     assertEquals(86400.0, exported("stats_a"), 0.0);
     assertEquals(259200.0, exported("stats_b"), 0.0);
 
     actual.set(Map.of("stats_a", Map.of("retention.ms", "172800000")));
-    metrics.update(configured);
+    metrics.update();
     assertEquals(172800.0, exported("stats_a"), 0.0);
     assertNull(exported("stats_b"));
   }
@@ -195,17 +300,16 @@ public class RetentionMetricsTest {
   @Test
   public void testUpdateKeepsLastRetentionWhenConfigsCannotBeRead() {
     AtomicBoolean brokersDown = new AtomicBoolean(false);
-    List<ConfiguredTopic> configured = List.of(topic("failing", Map.of()));
     RetentionMetrics metrics = metrics(() -> {
       if (brokersDown.get()) {
         throw new IllegalStateException("brokers down");
       }
       return Map.of("failing", Map.of("retention.ms", "86400000"));
     });
-    metrics.update(configured);
+    metrics.update();
 
     brokersDown.set(true);
-    metrics.update(configured);
+    metrics.update();
     assertEquals(86400.0, exported("failing"), 0.0);
   }
 
@@ -249,30 +353,37 @@ public class RetentionMetricsTest {
     AtomicReference<ActualConfigs> actual = new AtomicReference<>(new ActualConfigs(Map.of(
         "unread_no_desired", Map.of("retention.ms", "86400000"),
         "unread_desired", Map.of("retention.ms", "86400000")), Map.of()));
-    List<ConfiguredTopic> configured =
-        List.of(topic("unread_no_desired", Map.of()), topic("unread_desired", Map.of("retention.ms", "3600000")));
-    RetentionMetrics metrics = new RetentionMetrics(actual::get, () -> new ExpiredRecords(Map.of(), Map.of()));
-    metrics.update(configured);
+    RetentionMetrics metrics =
+        new RetentionMetrics(actual::get, () -> new ExpiredRecords(Map.of(), Map.of(), Map.of()));
+    metrics.update();
 
     actual.set(new ActualConfigs(
         Map.of("unread_no_desired", Map.of(), "unread_desired", Map.of()),
         Map.of("unread_no_desired", "timeout", "unread_desired", "timeout")));
-    metrics.update(configured);
+    metrics.update();
+    // the last retention the brokers reported, not the desired one: the brokers may not have applied it (dry run,
+    // unsafe drift in safe mode)
     assertEquals(86400.0, exported("unread_no_desired"), 0.0);
-    assertEquals(3600.0, exported("unread_desired"), 0.0);
+    assertEquals(86400.0, exported("unread_desired"), 0.0);
 
     // once the topic is gone (no longer listed), its series goes too
     actual.set(new ActualConfigs(Map.of(), Map.of()));
-    metrics.update(configured);
+    metrics.update();
     assertNull(exported("unread_no_desired"));
   }
 
   @Test
-  public void testOptionsAreOffWithoutTheSection() {
-    assertFalse(Options.enabled(Map.of("kafka", Map.of())));
+  public void testCreatedOnlyForContinuousRunsWithTheSection() {
+    AdminClient adminClient = mock(AdminClient.class);
+    Map<String, Object> withSection = Map.of("retentionMetrics", Map.of());
+    assertNotNull(RetentionMetrics.fromConfig(adminClient, withSection, true));
+    // a one-shot run has no metrics server to export them
+    assertNull(RetentionMetrics.fromConfig(adminClient, withSection, false));
+    assertNull(RetentionMetrics.fromConfig(adminClient, Map.of("kafka", Map.of()), true));
+    // an empty section (`retentionMetrics:` in YAML) turns them on with the defaults
     Map<String, Object> emptySection = new HashMap<>();
     emptySection.put("retentionMetrics", null);
-    assertTrue(Options.enabled(emptySection));
+    assertNotNull(RetentionMetrics.fromConfig(adminClient, emptySection, true));
   }
 
   @Test
@@ -292,6 +403,12 @@ public class RetentionMetricsTest {
     for (String group : List.of("other.consumer", "myapp.x", "app")) {
       assertFalse(group, options.consumerGroups().matcher(group).matches());
     }
+  }
+
+  @Test(expected = IllegalArgumentException.class)
+  public void testConsumerGroupsMustBeAString() {
+    // a YAML list would otherwise become the regular expression "[app.a, app.b]", a character class
+    Options.from(Map.of("retentionMetrics", Map.of("consumerGroups", List.of("app.a", "app.b"))));
   }
 
   @Test(expected = IllegalArgumentException.class)
@@ -360,12 +477,13 @@ public class RetentionMetricsTest {
     verify(adminClient, never()).listConsumerGroupOffsets("other.events");
     @SuppressWarnings("unchecked")
     ArgumentCaptor<Map<TopicPartition, OffsetSpec>> requested = ArgumentCaptor.forClass(Map.class);
+    // only the existing topic is asked for: one call per topic, none for the deleted one
     verify(adminClient).listOffsets(requested.capture());
-    assertEquals(Set.of(read, notCommitted, deleted), requested.getValue().keySet());
+    assertEquals(Set.of(read, notCommitted), requested.getValue().keySet());
   }
 
   @Test
-  public void testExpiredRecordsKeepGroupsWhoseLogStartOffsetsCannotBeRead() {
+  public void testExpiredRecordsReportTopicsWhoseLogStartOffsetsCannotBeRead() {
     final TopicPartition leaderless = new TopicPartition("leaderless", 0);
     final TopicPartition healthy = new TopicPartition("healthy", 0);
     AdminClient adminClient = mock(AdminClient.class);
@@ -392,8 +510,9 @@ public class RetentionMetricsTest {
 
     ExpiredRecords expired = RetentionMetrics.expiredRecords(adminClient, GROUPS, new HashMap<>());
     assertEquals(Map.of(new GroupTopic("app.b", "healthy"), 5L), expired.values());
-    assertEquals(Set.of("app.a"), expired.failedGroups().keySet());
-    assertTrue(expired.failedGroups().get("app.a").contains("no leader"));
+    assertEquals(Map.of(), expired.failedGroups());
+    assertEquals(Set.of(new GroupTopic("app.a", "leaderless")), expired.failedTopics().keySet());
+    assertTrue(expired.failedTopics().get(new GroupTopic("app.a", "leaderless")).contains("no leader"));
   }
 
   @Test
@@ -483,14 +602,14 @@ public class RetentionMetricsTest {
     AtomicReference<Map<GroupTopic, Long>> expired = new AtomicReference<>(Map.of(
         new GroupTopic("app.expired_a", "t1"), 0L,
         new GroupTopic("app.expired_b", "t1"), 42L));
-    RetentionMetrics metrics = metrics(Map::of, () -> new ExpiredRecords(expired.get(), Map.of()));
+    RetentionMetrics metrics = metrics(Map::of, () -> new ExpiredRecords(expired.get(), Map.of(), Map.of()));
 
-    metrics.update(List.of());
+    metrics.update();
     assertEquals(0.0, expired("app.expired_a", "t1"), 0.0);
     assertEquals(42.0, expired("app.expired_b", "t1"), 0.0);
 
     expired.set(Map.of(new GroupTopic("app.expired_a", "t1"), 7L));
-    metrics.update(List.of());
+    metrics.update();
     assertEquals(7.0, expired("app.expired_a", "t1"), 0.0);
     assertNull(expired("app.expired_b", "t1"));
   }
@@ -499,20 +618,20 @@ public class RetentionMetricsTest {
   public void testUpdateUpdatesOneMetricWhenTheOtherFails() {
     AtomicBoolean offsetsDown = new AtomicBoolean(false);
     AtomicReference<String> retentionMs = new AtomicReference<>("86400000");
-    List<ConfiguredTopic> configured = List.of(topic("independent", Map.of()));
     RetentionMetrics metrics = metrics(
         () -> Map.of("independent", Map.of("retention.ms", retentionMs.get())),
         () -> {
           if (offsetsDown.get()) {
             throw new IllegalStateException("coordinator down");
           }
-          return new ExpiredRecords(Map.of(new GroupTopic("app.independent", "independent"), 5L), Map.of());
+          return new ExpiredRecords(
+              Map.of(new GroupTopic("app.independent", "independent"), 5L), Map.of(), Map.of());
         });
-    metrics.update(configured);
+    metrics.update();
 
     offsetsDown.set(true);
     retentionMs.set("3600000");
-    metrics.update(configured);
+    metrics.update();
     assertEquals(3600.0, exported("independent"), 0.0);
     assertEquals(5.0, expired("app.independent", "independent"), 0.0);
   }
@@ -523,25 +642,61 @@ public class RetentionMetricsTest {
     GroupTopic failingT2 = new GroupTopic("app.failing", "t2");
     GroupTopic healthy = new GroupTopic("app.healthy", "t1");
     AtomicReference<ExpiredRecords> expired = new AtomicReference<>(
-        new ExpiredRecords(Map.of(failingT1, 3L, failingT2, 0L, healthy, 1L), Map.of()));
+        new ExpiredRecords(Map.of(failingT1, 3L, failingT2, 0L, healthy, 1L), Map.of(), Map.of()));
     RetentionMetrics metrics = metrics(Map::of, expired::get);
-    metrics.update(List.of());
+    metrics.update();
 
-    expired.set(new ExpiredRecords(Map.of(healthy, 9L), Map.of("app.failing", "coordinator moving")));
-    metrics.update(List.of());
+    expired.set(new ExpiredRecords(Map.of(healthy, 9L), Map.of("app.failing", "coordinator moving"), Map.of()));
+    metrics.update();
     assertEquals(3.0, expired("app.failing", "t1"), 0.0);
     assertEquals(0.0, expired("app.failing", "t2"), 0.0);
     assertEquals(9.0, expired("app.healthy", "t1"), 0.0);
 
-    expired.set(new ExpiredRecords(Map.of(failingT1, 4L, healthy, 9L), Map.of()));
-    metrics.update(List.of());
+    expired.set(new ExpiredRecords(Map.of(failingT1, 4L, healthy, 9L), Map.of(), Map.of()));
+    metrics.update();
     assertEquals(4.0, expired("app.failing", "t1"), 0.0);
     assertNull(expired("app.failing", "t2"));
 
     // a group that is gone, not failed, loses its series
-    expired.set(new ExpiredRecords(Map.of(healthy, 9L), Map.of()));
-    metrics.update(List.of());
+    expired.set(new ExpiredRecords(Map.of(healthy, 9L), Map.of(), Map.of()));
+    metrics.update();
     assertNull(expired("app.failing", "t1"));
     assertEquals(9.0, expired("app.healthy", "t1"), 0.0);
+  }
+
+  @Test
+  public void testUpdateKeepsLastExpiredRecordsOfTopicsThatCannotBeRead() {
+    GroupTopic readable = new GroupTopic("app.partly", "readable");
+    GroupTopic unreadable = new GroupTopic("app.partly", "unreadable");
+    AtomicReference<ExpiredRecords> expired =
+        new AtomicReference<>(new ExpiredRecords(Map.of(readable, 1L, unreadable, 2L), Map.of(), Map.of()));
+    RetentionMetrics metrics = metrics(Map::of, expired::get);
+    metrics.update();
+
+    expired.set(new ExpiredRecords(Map.of(readable, 7L), Map.of(), Map.of(unreadable, "no leader")));
+    metrics.update();
+    assertEquals(7.0, expired("app.partly", "readable"), 0.0);
+    assertEquals(2.0, expired("app.partly", "unreadable"), 0.0);
+  }
+
+  @Test
+  public void testGroupsWithoutCommittedOffsetsAreNotDescribed() {
+    TopicPartition read = new TopicPartition("events", 0);
+    AdminClient adminClient = mock(AdminClient.class);
+    lists(adminClient, "app.reading", "app.never_committed");
+    commits(adminClient, "app.reading", Map.of(read, 10L));
+    commits(adminClient, "app.never_committed", Map.of());
+    describes(adminClient,
+        group("app.reading", ConsumerGroupState.EMPTY), group("app.never_committed", ConsumerGroupState.EMPTY));
+    partitions(adminClient, Map.of("events", 1));
+    when(adminClient.listOffsets(anyMap())).thenReturn(logStarts(Map.of(read, 12L)));
+
+    ExpiredRecords expired = RetentionMetrics.expiredRecords(adminClient, GROUPS, new HashMap<>());
+    assertEquals(Map.of(new GroupTopic("app.reading", "events"), 2L), expired.values());
+    // describing a group costs a coordinator lookup and a request, and one that never committed has nothing to count
+    @SuppressWarnings("unchecked")
+    ArgumentCaptor<Collection<String>> described = ArgumentCaptor.forClass(Collection.class);
+    verify(adminClient).describeConsumerGroups(described.capture());
+    assertEquals(Set.of("app.reading"), Set.copyOf(described.getValue()));
   }
 }

@@ -204,7 +204,7 @@ public class TopicEnforcer extends Enforcer<ConfiguredTopic> {
         .labels("replication_drift")
         .set(topicsWithConfigDrift(Type.REPLICATION_FACTOR, Result.UNSUPPORTED_DRIFT).size());
     if (retentionMetrics != null) {
-      retentionMetrics.update(configured);
+      retentionMetrics.update();
     }
   }
 

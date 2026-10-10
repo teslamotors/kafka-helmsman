@@ -134,7 +134,7 @@ public class TopicEnforcerTest {
     RetentionMetrics retentionMetrics = mock(RetentionMetrics.class);
     enforcer = new TopicEnforcer(service, configured, new ConfigDrift(), retentionMetrics, true);
     enforcer.stats();
-    verify(retentionMetrics).update(configured);
+    verify(retentionMetrics).update();
   }
 
 }
