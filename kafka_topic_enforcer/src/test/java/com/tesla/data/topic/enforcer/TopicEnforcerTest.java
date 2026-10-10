@@ -129,4 +129,12 @@ public class TopicEnforcerTest {
     Assert.assertEquals("risky config must be allowed in unsafe mode", configured, enforcer.alterConfiguration());
   }
 
+  @Test
+  public void testStatsUpdatesRetentionMetrics() {
+    RetentionMetrics retentionMetrics = mock(RetentionMetrics.class);
+    enforcer = new TopicEnforcer(service, configured, new ConfigDrift(), retentionMetrics, true);
+    enforcer.stats();
+    verify(retentionMetrics).update();
+  }
+
 }

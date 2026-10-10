@@ -25,6 +25,8 @@ public class TopicEnforcer extends Enforcer<ConfiguredTopic> {
   private final ConfigDrift configDrift;
   private final Set<Result> configDriftSafetyFilters;
   private final TopicService topicService;
+  // null if retention metrics are off
+  private final RetentionMetrics retentionMetrics;
   // prometheus metrics should be static, see https://git.io/fj17x
   private static final Gauge partitionCountDrift =
       Gauge.build()
@@ -52,6 +54,20 @@ public class TopicEnforcer extends Enforcer<ConfiguredTopic> {
       List<ConfiguredTopic> configuredTopics,
       ConfigDrift configDrift,
       boolean safemode) {
+    this(topicService, configuredTopics, configDrift, null, safemode);
+  }
+
+  /**
+   * The constructor.
+   *
+   * @param retentionMetrics if not null, updated with the other stats, see {@link RetentionMetrics}
+   */
+  public TopicEnforcer(
+      TopicService topicService,
+      List<ConfiguredTopic> configuredTopics,
+      ConfigDrift configDrift,
+      RetentionMetrics retentionMetrics,
+      boolean safemode) {
     super(
         configuredTopics,
         () -> topicService.listExisting().values(),
@@ -62,6 +78,7 @@ public class TopicEnforcer extends Enforcer<ConfiguredTopic> {
         "Internal topics found in config");
     this.topicService = topicService;
     this.configDrift = configDrift;
+    this.retentionMetrics = retentionMetrics;
     this.configDriftSafetyFilters =
         safemode
             ? EnumSet.of(Result.SAFE_DRIFT)
@@ -186,6 +203,9 @@ public class TopicEnforcer extends Enforcer<ConfiguredTopic> {
     unsupportedDrift
         .labels("replication_drift")
         .set(topicsWithConfigDrift(Type.REPLICATION_FACTOR, Result.UNSUPPORTED_DRIFT).size());
+    if (retentionMetrics != null) {
+      retentionMetrics.update();
+    }
   }
 
 }

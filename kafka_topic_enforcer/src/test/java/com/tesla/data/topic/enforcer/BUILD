@@ -33,3 +33,18 @@ java_test(
         "//kafka_topic_enforcer/src/main/java/com/tesla/data/topic/enforcer",
     ],
 )
+
+java_test(
+    name = "RetentionMetricsTest",
+    srcs = [
+        "RetentionMetricsTest.java",
+    ],
+    deps = [
+        "//3rdparty/jvm/io/prometheus:simpleclient",
+        "//3rdparty/jvm/junit",
+        "//3rdparty/jvm/org/apache/kafka:kafka_clients",
+        "//3rdparty/jvm/org/apache/kafka:kafka_clients_jar_test",
+        "//3rdparty/jvm/org/mockito:mockito_core",
+        "//kafka_topic_enforcer/src/main/java/com/tesla/data/topic/enforcer",
+    ],
+)
