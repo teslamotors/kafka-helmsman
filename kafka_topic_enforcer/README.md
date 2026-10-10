@@ -188,3 +188,43 @@ Would default to 10 partitions for all topics in all clusters, and 6000000ms `re
   * cluster default
   * default 
 
+
+# Retention metrics
+
+In continuous mode, the enforcer can also export how long each topic keeps data and how many records consumer groups
+lost to retention before reading them, so alerts can compare consumer lag with retention and see data that expired
+unread. The metrics are off unless the configuration has a `retentionMetrics` section:
+
+```yaml
+kafka:
+    bootstrap.servers: 'foo_1:9092,foo_2:9092,foo_3:9092'
+
+topicsFile: my-topics.yaml
+
+retentionMetrics:
+  # optional, a regular expression the whole group id must match; default: all consumer groups
+  consumerGroups: 'app\..*'
+```
+
+`retentionMetrics: {}` turns them on with the defaults. Both metrics are updated before each enforcement run:
+
+| Metric | Labels | Value |
+|---|---|---|
+| `kafka_topic_enforcer_topic_retention_seconds` | `topic` | The topic's `retention.ms` as the brokers report it (broker defaults included), in seconds. Topics with infinite retention (`-1`) or compact-only cleanup are not exported. |
+| `kafka_topic_enforcer_consumer_expired_records` | `consumer`, `topic` | Records the consumer group had not read when Kafka deleted them: log start offset minus committed offset, summed over the topic's partitions; 0 if none. |
+
+How expired records are counted:
+
+* Only the topics a group currently reads count. Kafka keeps a group's offsets for topics it stopped reading for
+  `offsets.retention.minutes`, and those would otherwise read as loss. A group with members counts the topics they are
+  assigned; a group without members (stopped or stalled) counts every topic it has committed offsets for.
+* On a partition of such a topic the group has never committed (for example one added to the topic later and never
+  assigned), the growth of its log start offset since the enforcer first saw it unread is counted. Records deleted
+  before that, for example before the enforcer started, are not.
+* Values are sampled once per run (`--interval`), so they catch stalled and stopped groups. A live consumer that falls
+  behind and resets to the log start between two runs is not counted.
+* A topic, group or partition that cannot be read keeps its last value, and the failures are logged once per run.
+  Enforcement is never affected.
+
+The enforcer's principal needs `Describe` on the consumer groups it reports, in addition to the topic permissions it
+already has.

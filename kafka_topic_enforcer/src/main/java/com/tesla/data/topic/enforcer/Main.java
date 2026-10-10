@@ -28,6 +28,10 @@ public class Main {
       return new TopicEnforcer(
           new TopicServiceImpl(adminClient, dryrun),
           configuredEntities(ConfiguredTopic.class, "topics", "topicsFile"),
+          new ConfigDrift(),
+          RetentionMetrics.Options.enabled(cmdConfig)
+              ? new RetentionMetrics(adminClient, RetentionMetrics.Options.from(cmdConfig))
+              : null,
           !unsafemode);
     }
 
