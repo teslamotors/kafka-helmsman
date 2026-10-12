@@ -337,7 +337,7 @@ public class ConsumerFreshness {
         return metricsCluster(cluster);
       }
 
-      throw new RuntimeException("No single partition for any topic for any consumer for cluster {}" + cluster +
+      throw new RuntimeException("No single partition for any topic for any consumer for cluster " + cluster +
           " returned successfully - is the cluster configured correctly?");
     }, this.executor);
   }
