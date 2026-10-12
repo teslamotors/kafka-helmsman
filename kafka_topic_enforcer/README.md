@@ -191,10 +191,9 @@ Would default to 10 partitions for all topics in all clusters, and 6000000ms `re
 
 # Retention metrics
 
-The enforcer can also export how long each topic keeps data and how many records consumer groups lost to retention
-before reading them, so alerts can compare consumer lag with retention and see data that expired unread. The metrics
-are on only in continuous mode (`--continuous`, which serves them on `metricsPort`) and only if the configuration has a
-`retentionMetrics` section:
+The enforcer can also export how long each topic keeps data, so alerts can compare consumer lag with retention. The
+metric is on only in continuous mode (`--continuous`, which serves it on `metricsPort`) and only if the configuration
+has a `retentionMetrics` section. The section has no options, so an empty one turns the metric on:
 
 ```yaml
 kafka:
@@ -202,40 +201,20 @@ kafka:
 
 topicsFile: my-topics.yaml
 
-retentionMetrics:
-  # optional, a regular expression the whole group id must match; default: all consumer groups
-  consumerGroups: 'app\..*'
+retentionMetrics: {}
 ```
 
-`retentionMetrics: {}` turns them on with the defaults. Both metrics are updated before each enforcement run:
+The metric is updated before each enforcement run:
 
 | Metric | Labels | Value |
 |---|---|---|
 | `kafka_topic_enforcer_topic_retention_seconds` | `topic` | The topic's `retention.ms` as the brokers report it (broker defaults included), in seconds. Topics with infinite retention (`-1`) or compact-only cleanup are not exported. |
-| `kafka_topic_enforcer_consumer_expired_records` | `consumer`, `topic` | Records the consumer group had not read when Kafka deleted them: log start offset minus committed offset, summed over the topic's partitions; 0 if none. |
 
-The expired records metric has one series per group and topic, zeros included. On clusters with many groups, use
-`consumerGroups` to report only the ones you alert on.
+Internal topics (with a prefix of underscore `_`) are skipped, as in enforcement. The series of a topic that is deleted,
+or that no longer expires data by time, is removed.
 
-How expired records are counted:
+Failures never affect enforcement and are logged once per run: a topic whose config cannot be read keeps its last
+value, and if the topic configs cannot be read at all, every topic keeps its last value.
 
-* A group counts on the topics it has committed offsets for; a group that has never committed is not reported. Kafka
-  keeps a group's offsets for topics it stopped reading for `offsets.retention.minutes`, and those would read as loss,
-  so a group with members counts only the committed topics its members are currently assigned. A group without members
-  (stopped or stalled) counts every topic it has committed offsets for. Consumers that commit with `assign()` and no
-  group membership always look like this.
-* On a partition of such a topic the group has never committed (for example one added to the topic later and never
-  assigned), the growth of its log start offset since the enforcer first saw it unread is counted. Records deleted
-  before that, for example before the enforcer started, are not.
-* Values are sampled once per run (`--interval`), so they catch stalled and stopped groups. A live consumer that falls
-  behind and resets to the log start between two runs is not counted.
-
-Failures never affect enforcement, keep the last values and are logged once per run:
-
-* a topic whose config cannot be read keeps its last retention;
-* a group whose offsets or assignment cannot be read, or that is rebalancing, keeps all its expired records;
-* a topic that cannot be read keeps its expired records for the groups reading it, while their other topics update.
-  That includes a topic with a partition that has no leader: listing offsets would fail for the whole topic.
-
-The enforcer's principal needs `Describe` on the consumer groups it reports (without `Describe` on the cluster, only
-those groups are listed) and on their topics, in addition to the topic permissions it already has.
+The metric needs no extra permissions: it lists topics and describes their configs (`Describe` and `DescribeConfigs`
+on the topics), which the enforcer already does to compare the existing topics with the configured ones.
