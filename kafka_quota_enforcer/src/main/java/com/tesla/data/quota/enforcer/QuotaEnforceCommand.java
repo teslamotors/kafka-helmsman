@@ -7,14 +7,13 @@ package com.tesla.data.quota.enforcer;
 import com.tesla.data.enforcer.EnforceCommand;
 import com.tesla.data.enforcer.Enforcer;
 
-import org.apache.kafka.clients.admin.AdminClient;
-import org.apache.kafka.clients.admin.KafkaAdminClient;
+import org.apache.kafka.clients.admin.Admin;
 
 import java.util.Map;
 
 
 public class QuotaEnforceCommand extends EnforceCommand<ConfiguredQuota> {
-  private AdminClient adminClient;
+  private Admin adminClient;
 
   public QuotaEnforceCommand(){
     // DO NOT REMOVE, this is needed by jcommander
@@ -28,7 +27,7 @@ public class QuotaEnforceCommand extends EnforceCommand<ConfiguredQuota> {
 
   @Override
   protected Enforcer<ConfiguredQuota> initEnforcer() {
-    this.adminClient = KafkaAdminClient.create(kafkaConfig());
+    this.adminClient = Admin.create(kafkaConfig());
     return new QuotaEnforcer(configuredEntities(ConfiguredQuota.class, "quotas", "quotasFile"),
         new AdminClientQuotaService(adminClient), !unsafemode, dryrun);
   }
