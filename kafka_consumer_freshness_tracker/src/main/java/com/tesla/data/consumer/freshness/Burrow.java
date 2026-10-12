@@ -73,6 +73,15 @@ class Burrow {
     }
   }
 
+  /**
+   * Release the resources held by the underlying http client - its dispatcher's executor service and its
+   * connection pool keep non-daemon threads alive until they are explicitly shut down.
+   */
+  public void close() {
+    client.dispatcher().executorService().shutdown();
+    client.connectionPool().evictAll();
+  }
+
   private HttpUrl address(String... paths) {
     List<String> parts = Lists.newArrayList(this.url, this.api);
     Collections.addAll(parts, paths);
