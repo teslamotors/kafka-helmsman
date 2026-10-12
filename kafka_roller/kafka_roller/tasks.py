@@ -121,7 +121,7 @@ def _run_safe(c, description, command):
     result = run(c, command)
     if result.return_code != 0:
         logger.error(
-            "{} command {} failed with error: {}",
+            "%s command %s failed with error: %s",
             description,
             result.command,
             result.return_code,
