@@ -132,6 +132,7 @@ public class TopicEnforcerTest {
   @Test
   public void testStatsUpdatesRetentionMetrics() {
     RetentionMetrics retentionMetrics = mock(RetentionMetrics.class);
+    when(service.listExisting()).thenReturn(Collections.emptyMap());
     enforcer = new TopicEnforcer(service, configured, new ConfigDrift(), retentionMetrics, true);
     enforcer.stats();
     verify(retentionMetrics).update();

@@ -20,6 +20,11 @@ import java.util.Map;
 public class Main {
 
   private static class TopicEnforceCommand extends EnforceCommand<ConfiguredTopic> {
+    @Parameter(
+        names = {"--retentionmetrics"},
+        description = "export the retention of each topic as a metric, continuous mode only")
+    private boolean retentionMetrics = false;
+
     private AdminClient adminClient;
 
     @Override
@@ -29,7 +34,8 @@ public class Main {
           new TopicServiceImpl(adminClient, dryrun),
           configuredEntities(ConfiguredTopic.class, "topics", "topicsFile"),
           new ConfigDrift(),
-          RetentionMetrics.fromConfig(adminClient, cmdConfig, continuous),
+          // only continuous mode serves metrics
+          retentionMetrics && continuous ? new RetentionMetrics(adminClient) : null,
           !unsafemode);
     }
 

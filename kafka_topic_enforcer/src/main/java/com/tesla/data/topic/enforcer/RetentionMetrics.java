@@ -25,9 +25,8 @@ import java.util.stream.Collectors;
 
 /**
  * Exports the retention of every topic as the brokers report it, so alerts can compare consumer lag with retention.
- * {@link TopicEnforcer} updates it with its other stats; the enforce command creates it only in continuous mode and
- * only when the enforcer config has a {@code retentionMetrics} section, see
- * {@link #fromConfig(AdminClient, Map, boolean)}.
+ * {@link TopicEnforcer} updates it with its other stats; the enforce command creates it only with
+ * {@code --retentionmetrics} in continuous mode.
  */
 public class RetentionMetrics {
 
@@ -35,7 +34,6 @@ public class RetentionMetrics {
 
   static final String RETENTION_MS = "retention.ms";
   static final String CLEANUP_POLICY = "cleanup.policy";
-  static final String CONFIG_KEY = "retentionMetrics";
 
   // prometheus metrics should be static, see https://git.io/fj17x
   private static final Gauge topicRetention =
@@ -57,7 +55,7 @@ public class RetentionMetrics {
   private Set<String> exportedTopics = Set.of();
 
   /**
-   * The constructor.
+   * Creates the metric, reading topic configs through the given admin client.
    *
    * @param adminClient reads topic configs
    */
@@ -68,28 +66,6 @@ public class RetentionMetrics {
   // for testing
   RetentionMetrics(Supplier<ActualConfigs> actualConfigs) {
     this.actualConfigs = actualConfigs;
-  }
-
-  /**
-   * The retention metric the enforce command should update, or null if it is off.
-   *
-   * @param adminClient reads topic configs
-   * @param config the enforcer config; its {@code retentionMetrics} section turns the metric on and must be a map,
-   *     an empty one ({@code retentionMetrics: {}} or {@code retentionMetrics:}) is enough
-   * @param continuous whether the enforcer runs continuously; the metric is on only then, and only if the config
-   *     has a {@code retentionMetrics} section
-   */
-  static RetentionMetrics fromConfig(AdminClient adminClient, Map<String, Object> config, boolean continuous) {
-    // a one-shot run has no metrics server to export it
-    if (!continuous || !config.containsKey(CONFIG_KEY)) {
-      return null;
-    }
-    // `retentionMetrics:` with nothing after it reads as null
-    Object section = config.get(CONFIG_KEY);
-    if (section != null && !(section instanceof Map)) {
-      throw new IllegalArgumentException(CONFIG_KEY + " must be a map, got " + section);
-    }
-    return new RetentionMetrics(adminClient);
   }
 
   /**

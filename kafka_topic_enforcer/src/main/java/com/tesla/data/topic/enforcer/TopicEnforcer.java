@@ -58,7 +58,7 @@ public class TopicEnforcer extends Enforcer<ConfiguredTopic> {
   }
 
   /**
-   * The constructor.
+   * Creates an enforcer that also updates the topic retention metric with its other stats.
    *
    * @param retentionMetrics if not null, updated with the other stats, see {@link RetentionMetrics}
    */

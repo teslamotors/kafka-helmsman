@@ -5,7 +5,6 @@
 package com.tesla.data.topic.enforcer;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -31,7 +30,6 @@ import org.apache.kafka.common.errors.TimeoutException;
 import org.apache.kafka.common.internals.KafkaFutureImpl;
 import org.junit.Test;
 
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -66,6 +64,7 @@ public class RetentionMetricsTest {
             "infinite", Map.of("retention.ms", "-1", "cleanup.policy", "delete"),
             "compacted", Map.of("retention.ms", "604800000", "cleanup.policy", "compact"),
             "compacted_and_deleted", Map.of("retention.ms", "604800000", "cleanup.policy", "compact,delete"),
+            "no_retention_ms", Map.of("cleanup.policy", "delete"),
             "unknown", Map.of()));
     assertEquals(Map.of("compacted_and_deleted", 604800.0), retention);
   }
@@ -159,24 +158,5 @@ public class RetentionMetricsTest {
     actual.set(new ActualConfigs(Map.of(), Map.of()));
     metrics.update();
     assertNull(exported("unread_no_desired"));
-  }
-
-  @Test
-  public void testCreatedOnlyForContinuousRunsWithTheSection() {
-    AdminClient adminClient = mock(AdminClient.class);
-    Map<String, Object> withSection = Map.of("retentionMetrics", Map.of());
-    assertNotNull(RetentionMetrics.fromConfig(adminClient, withSection, true));
-    // a one-shot run has no metrics server to export it
-    assertNull(RetentionMetrics.fromConfig(adminClient, withSection, false));
-    assertNull(RetentionMetrics.fromConfig(adminClient, Map.of("kafka", Map.of()), true));
-    // an empty section (`retentionMetrics:` in YAML) turns it on too
-    Map<String, Object> emptySection = new HashMap<>();
-    emptySection.put("retentionMetrics", null);
-    assertNotNull(RetentionMetrics.fromConfig(adminClient, emptySection, true));
-  }
-
-  @Test(expected = IllegalArgumentException.class)
-  public void testSectionMustBeAMap() {
-    RetentionMetrics.fromConfig(mock(AdminClient.class), Map.of("retentionMetrics", "enabled"), true);
   }
 }
