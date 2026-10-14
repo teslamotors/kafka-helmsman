@@ -47,7 +47,7 @@ public abstract class Enforcer<T> {
   protected final boolean safemode;
 
   /**
-   * The constructor.
+   * Creates an enforcer that moves the existing entities towards the configured ones.
    *
    * @param configured list of configured entities, ex: topics, acls, etc., this list defines the desired state
    * @param existing   a supplier to fetch the actual state

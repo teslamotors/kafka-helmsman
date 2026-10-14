@@ -67,6 +67,10 @@ Usage: <main class> [options] [command] [command options]
           --interval, -i
             run interval for continuous mode in seconds
             Default: 600
+          --retentionmetrics
+            export the retention of each topic as a metric, continuous mode
+            only
+            Default: false
           --unsafemode
             run in unsafe mode, topic deletion is _only_ allowed in this mode
             Default: false
@@ -188,3 +192,27 @@ Would default to 10 partitions for all topics in all clusters, and 6000000ms `re
   * cluster default
   * default 
 
+
+# Retention metrics
+
+The enforcer can also export how long each topic keeps data, so alerts can compare consumer lag with retention. Turn
+it on with `--retentionmetrics`; it works only in continuous mode (`--continuous`, which serves it on `metricsPort`):
+
+```
+enforce --continuous --retentionmetrics my-config.yaml
+```
+
+The metric is updated before each enforcement run:
+
+| Metric | Labels | Value |
+|---|---|---|
+| `kafka_topic_enforcer_topic_retention_seconds` | `topic` | The topic's `retention.ms` as the brokers report it (broker defaults included), in seconds. Topics with infinite retention (`-1`) or compact-only cleanup are not exported. |
+
+Internal topics (with a prefix of underscore `_`) are skipped, as in enforcement. The series of a topic that is deleted,
+or that no longer expires data by time, is removed.
+
+Failures never affect enforcement and are logged once per run: a topic whose config cannot be read keeps its last
+value, and if the topic configs cannot be read at all, every topic keeps its last value.
+
+The metric needs no extra permissions: it lists topics and describes their configs (`Describe` and `DescribeConfigs`
+on the topics), which the enforcer already does to compare the existing topics with the configured ones.
