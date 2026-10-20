@@ -102,4 +102,26 @@ public class ConfigDriftTest {
     Assert.assertEquals(UNSAFE_DRIFT, drift.check(desired, actual, ConfigDrift.Type.PARTITION_COUNT));
   }
 
+  @Test
+  public void testPartitionDecrease() {
+    // Kafka can not decrease the partition count of a topic, whatever the size of the change.
+    // Desired count below the low water mark
+    Assert.assertEquals(UNSUPPORTED_DRIFT, drift.check(
+        new ConfiguredTopic("a", 5, (short) 1, Collections.emptyMap()),
+        new ConfiguredTopic("a", 10, (short) 1, Collections.emptyMap()),
+        ConfigDrift.Type.PARTITION_COUNT));
+
+    // between the water marks
+    Assert.assertEquals(UNSUPPORTED_DRIFT, drift.check(
+        new ConfiguredTopic("a", 40, (short) 1, Collections.emptyMap()),
+        new ConfiguredTopic("a", 50, (short) 1, Collections.emptyMap()),
+        ConfigDrift.Type.PARTITION_COUNT));
+
+    // above the high water mark
+    Assert.assertEquals(UNSUPPORTED_DRIFT, drift.check(
+        new ConfiguredTopic("a", 150, (short) 1, Collections.emptyMap()),
+        new ConfiguredTopic("a", 200, (short) 1, Collections.emptyMap()),
+        ConfigDrift.Type.PARTITION_COUNT));
+  }
+
 }

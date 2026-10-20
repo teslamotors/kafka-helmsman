@@ -203,6 +203,9 @@ public class TopicEnforcer extends Enforcer<ConfiguredTopic> {
     unsupportedDrift
         .labels("replication_drift")
         .set(topicsWithConfigDrift(Type.REPLICATION_FACTOR, Result.UNSUPPORTED_DRIFT).size());
+    unsupportedDrift
+        .labels("partition_decrease")
+        .set(topicsWithConfigDrift(Type.PARTITION_COUNT, Result.UNSUPPORTED_DRIFT).size());
     if (retentionMetrics != null) {
       retentionMetrics.update();
     }

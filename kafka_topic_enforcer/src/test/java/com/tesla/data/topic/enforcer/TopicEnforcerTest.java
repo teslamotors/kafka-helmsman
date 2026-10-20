@@ -5,10 +5,12 @@
 package com.tesla.data.topic.enforcer;
 
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
+import io.prometheus.client.CollectorRegistry;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -112,6 +114,43 @@ public class TopicEnforcerTest {
     enforcer = new TopicEnforcer(service, configured, false);
     Assert.assertEquals("aggressive partition count increase must be allowed in unsafe mode", configured,
         enforcer.increasePartitions());
+  }
+
+  @Test
+  public void testPartitionDecreaseIsNotAttempted() {
+    List<ConfiguredTopic> configured = Arrays.asList(
+        // topic 'a' is configured with fewer partitions than it has, kafka can not decrease them
+        new ConfiguredTopic("a", 1, (short) 1, Collections.emptyMap()),
+        // topic 'b' wants to increase partition count to 3
+        new ConfiguredTopic("b", 3, (short) 1, Collections.emptyMap()));
+    Map<String, ConfiguredTopic> existing = ImmutableMap.of(
+        "a", new ConfiguredTopic("a", 3, (short) 1, Collections.emptyMap()),
+        "b", new ConfiguredTopic("b", 1, (short) 1, Collections.emptyMap()));
+    when(service.listExisting()).thenReturn(existing);
+
+    List<ConfiguredTopic> expected = Collections.singletonList(configured.get(1));
+    for (boolean safemode : new boolean[] {true, false}) {
+      enforcer = new TopicEnforcer(service, configured, safemode);
+      Assert.assertEquals("partition decrease must not be attempted, safemode: " + safemode, expected,
+          enforcer.increasePartitions());
+    }
+    verify(service, times(2)).listExisting();
+    verify(service, times(2)).increasePartitions(expected);
+    verifyNoMoreInteractions(service);
+  }
+
+  @Test
+  public void testStatsReportsPartitionDecreaseAsUnsupportedDrift() {
+    List<ConfiguredTopic> configured = Collections.singletonList(
+        new ConfiguredTopic("a", 1, (short) 1, Collections.emptyMap()));
+    when(service.listExisting()).thenReturn(Collections.singletonMap("a",
+        new ConfiguredTopic("a", 3, (short) 1, Collections.emptyMap())));
+    enforcer = new TopicEnforcer(service, configured, true);
+    enforcer.stats();
+    Assert.assertEquals(Double.valueOf(1), CollectorRegistry.defaultRegistry.getSampleValue(
+        "kafka_topic_enforcer_unsupported_drift_topics", new String[] {"type"}, new String[] {"partition_decrease"}));
+    Assert.assertEquals(Double.valueOf(0), CollectorRegistry.defaultRegistry.getSampleValue(
+        "kafka_topic_enforcer_partition_count_drift_topics", new String[] {"type"}, new String[] {"safe"}));
   }
 
   @Test

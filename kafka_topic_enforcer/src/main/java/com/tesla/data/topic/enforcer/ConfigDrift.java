@@ -80,6 +80,9 @@ public class ConfigDrift {
       case PARTITION_COUNT:
         if (desired.getPartitions() == actual.getPartitions()) {
           return Result.NO_DRIFT;
+        } else if (desired.getPartitions() < actual.getPartitions()) {
+          // Kafka can not decrease the partition count of a topic
+          return Result.UNSUPPORTED_DRIFT;
         } else {
           if (desired.getPartitions() <= partitionCountLowWaterMark) {
             return Result.SAFE_DRIFT;
