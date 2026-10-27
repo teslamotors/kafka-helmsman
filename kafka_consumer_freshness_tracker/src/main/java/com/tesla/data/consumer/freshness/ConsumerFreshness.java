@@ -213,6 +213,11 @@ public class ConsumerFreshness {
   }
 
   private KafkaConsumer createConsumer(Map<String, Object> conf) {
+    return new KafkaConsumer(consumerProperties(conf));
+  }
+
+  @VisibleForTesting
+  static Properties consumerProperties(Map<String, Object> conf) {
     Properties props = new Properties();
     props.put("key.deserializer", "org.apache.kafka.common.serialization.ByteArrayDeserializer");
     props.put("value.deserializer", "org.apache.kafka.common.serialization.ByteArrayDeserializer");
@@ -224,9 +229,12 @@ public class ConsumerFreshness {
     props.put("send.buffer.bytes", 100);
     props.put("max.partition.fetch.bytes", 100);
     props.put("check.crcs", false);
+    // a committed offset that has aged out of retention must not reset to the log end, or the
+    // most lagged consumers would read the newest record and report ~0 freshness
+    props.put("auto.offset.reset", "earliest");
 
     props.putAll((Map<String, Object>) conf.get("kafka"));
-    return new KafkaConsumer(props);
+    return props;
   }
 
   void setupForTesting(Burrow burrow, Map<String, ArrayBlockingQueue<KafkaConsumer>> workers,

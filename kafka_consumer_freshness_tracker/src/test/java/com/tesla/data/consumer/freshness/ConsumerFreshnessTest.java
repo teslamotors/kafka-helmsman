@@ -40,6 +40,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Properties;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Executors;
@@ -537,6 +538,22 @@ public class ConsumerFreshnessTest {
     thrown.expect(RuntimeException.class);
     thrown.expectCause(org.hamcrest.CoreMatchers.equalTo(cause));
     freshness.run();
+  }
+
+  @Test
+  public void testConsumerResetsOutOfRangeOffsetsToEarliest() {
+    Map<String, Object> conf = new HashMap<>();
+    conf.put("kafka", ImmutableMap.of("bootstrap.servers", "localhost:9092"));
+    Properties props = ConsumerFreshness.consumerProperties(conf);
+    assertEquals("earliest", props.get("auto.offset.reset"));
+    assertEquals("localhost:9092", props.get("bootstrap.servers"));
+  }
+
+  @Test
+  public void testConsumerOffsetResetCanBeOverridden() {
+    Map<String, Object> conf = new HashMap<>();
+    conf.put("kafka", ImmutableMap.of("auto.offset.reset", "none"));
+    assertEquals("none", ConsumerFreshness.consumerProperties(conf).get("auto.offset.reset"));
   }
 
   private void assertNoSuccessfulClusterMeasurement(ConsumerFreshness freshness, String cluster) {
