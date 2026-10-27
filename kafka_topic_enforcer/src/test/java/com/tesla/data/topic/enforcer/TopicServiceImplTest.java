@@ -19,6 +19,7 @@ import org.apache.kafka.clients.admin.CreatePartitionsOptions;
 import org.apache.kafka.clients.admin.CreatePartitionsResult;
 import org.apache.kafka.clients.admin.CreateTopicsOptions;
 import org.apache.kafka.clients.admin.CreateTopicsResult;
+import org.apache.kafka.clients.admin.DeleteTopicsResult;
 import org.apache.kafka.clients.admin.DescribeConfigsResult;
 import org.apache.kafka.clients.admin.DescribeTopicsResult;
 import org.apache.kafka.clients.admin.KafkaAdminClient;
@@ -32,6 +33,8 @@ import org.apache.kafka.common.KafkaFuture;
 import org.apache.kafka.common.Node;
 import org.apache.kafka.common.TopicPartitionInfo;
 import org.apache.kafka.common.config.ConfigResource;
+import org.apache.kafka.common.errors.TopicDeletionDisabledException;
+import org.apache.kafka.common.internals.KafkaFutureImpl;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -46,6 +49,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
 
 public class TopicServiceImplTest {
 
@@ -226,5 +230,40 @@ public class TopicServiceImplTest {
     Assert.assertTrue(alter.getValue().containsKey(expectedKey));
     Assert.assertEquals("v", ((Config) alter.getValue().get(expectedKey)).get("k").value());
     Assert.assertTrue(options.getValue().shouldValidateOnly());
+  }
+
+  @Test
+  public void testDelete() {
+    TopicService service = new TopicServiceImpl(adminClient, false);
+    DeleteTopicsResult result = mock(DeleteTopicsResult.class);
+    when(result.all()).thenReturn(KafkaFuture.completedFuture(null));
+    when(adminClient.deleteTopics(any(Collection.class))).thenReturn(result);
+
+    service.delete(Collections.singletonList(
+        new ConfiguredTopic("test", 3, (short) 2, Collections.emptyMap())));
+
+    ArgumentCaptor<Collection> deleted = ArgumentCaptor.forClass(Collection.class);
+    verify(adminClient).deleteTopics((Collection<String>) deleted.capture());
+    Assert.assertEquals(Collections.singletonList("test"), deleted.getValue());
+    verify(result).all();
+  }
+
+  @Test
+  public void testDeleteFailure() {
+    TopicService service = new TopicServiceImpl(adminClient, false);
+    KafkaFutureImpl<Void> failed = new KafkaFutureImpl<>();
+    failed.completeExceptionally(new TopicDeletionDisabledException("topic deletion is disabled"));
+    DeleteTopicsResult result = mock(DeleteTopicsResult.class);
+    when(result.all()).thenReturn(failed);
+    when(adminClient.deleteTopics(any(Collection.class))).thenReturn(result);
+
+    try {
+      service.delete(Collections.singletonList(
+          new ConfiguredTopic("test", 3, (short) 2, Collections.emptyMap())));
+      Assert.fail("expected the deletion failure to be propagated");
+    } catch (RuntimeException e) {
+      Assert.assertTrue(e.getCause() instanceof ExecutionException);
+      Assert.assertTrue(e.getCause().getCause() instanceof TopicDeletionDisabledException);
+    }
   }
 }
