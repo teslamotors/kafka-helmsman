@@ -14,6 +14,8 @@ import org.junit.Assert;
 import org.junit.Test;
 
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 
 public class ConfigDriftTest {
 
@@ -39,6 +41,11 @@ public class ConfigDriftTest {
     // Checking a different topic
     ConfiguredTopic desired = new ConfiguredTopic("b", 1, (short) 1, Collections.emptyMap());
     drift.check(desired, actual, ConfigDrift.Type.ANY);
+  }
+
+  @Test(expected = IllegalArgumentException.class)
+  public void testInvalidWaterMarks() {
+    new ConfigDrift(200, 100, 0.25f, Collections.emptySet());
   }
 
   @Test
@@ -71,6 +78,51 @@ public class ConfigDriftTest {
     ConfigDrift drift = new ConfigDrift(10, 20, 0.25f, Collections.singleton("k"));
     ConfiguredTopic desired = new ConfiguredTopic("a", 10, (short) 1, Collections.singletonMap("k", "v"));
     Assert.assertEquals(UNSAFE_DRIFT, drift.check(desired, actual, ConfigDrift.Type.TOPIC_CONFIG));
+  }
+
+  @Test
+  public void testSafeTopicPropertiesWithUnchangedUnsafeProperty() {
+    ConfigDrift drift = new ConfigDrift(10, 20, 0.25f, Collections.singleton("cleanup.policy"));
+    Map<String, String> actualConfig = new HashMap<>();
+    actualConfig.put("cleanup.policy", "compact");
+    actualConfig.put("retention.ms", "86400000");
+    ConfiguredTopic actualTopic = new ConfiguredTopic("a", 10, (short) 1, actualConfig);
+
+    Map<String, String> desiredConfig = new HashMap<>();
+    desiredConfig.put("cleanup.policy", "compact"); // Unchanged
+    desiredConfig.put("retention.ms", "172800000"); // Safe change
+    ConfiguredTopic desiredTopic = new ConfiguredTopic("a", 10, (short) 1, desiredConfig);
+
+    Assert.assertEquals(SAFE_DRIFT, drift.check(desiredTopic, actualTopic, ConfigDrift.Type.TOPIC_CONFIG));
+  }
+
+  @Test
+  public void testUnsafeTopicPropertiesWhenUnsafePropertyRemoved() {
+    ConfigDrift drift = new ConfigDrift(10, 20, 0.25f, Collections.singleton("cleanup.policy"));
+    Map<String, String> actualConfig = new HashMap<>();
+    actualConfig.put("cleanup.policy", "compact");
+    actualConfig.put("retention.ms", "86400000");
+    ConfiguredTopic actualTopic = new ConfiguredTopic("a", 10, (short) 1, actualConfig);
+
+    Map<String, String> desiredConfig = new HashMap<>();
+    desiredConfig.put("retention.ms", "86400000"); // cleanup.policy was removed
+    ConfiguredTopic desiredTopic = new ConfiguredTopic("a", 10, (short) 1, desiredConfig);
+
+    Assert.assertEquals(UNSAFE_DRIFT, drift.check(desiredTopic, actualTopic, ConfigDrift.Type.TOPIC_CONFIG));
+  }
+
+  @Test
+  public void testUnsafeTopicPropertiesWhenUnsafePropertyValueChanged() {
+    ConfigDrift drift = new ConfigDrift(10, 20, 0.25f, Collections.singleton("cleanup.policy"));
+    Map<String, String> actualConfig = new HashMap<>();
+    actualConfig.put("cleanup.policy", "delete");
+    ConfiguredTopic actualTopic = new ConfiguredTopic("a", 10, (short) 1, actualConfig);
+
+    Map<String, String> desiredConfig = new HashMap<>();
+    desiredConfig.put("cleanup.policy", "compact");
+    ConfiguredTopic desiredTopic = new ConfiguredTopic("a", 10, (short) 1, desiredConfig);
+
+    Assert.assertEquals(UNSAFE_DRIFT, drift.check(desiredTopic, actualTopic, ConfigDrift.Type.TOPIC_CONFIG));
   }
 
   @Test
