@@ -8,6 +8,9 @@ import static tesla.shade.com.google.common.base.Preconditions.checkArgument;
 import static tesla.shade.com.google.common.base.Preconditions.checkNotNull;
 
 import java.util.Collections;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -26,12 +29,16 @@ public class ConfigDrift {
 
   public ConfigDrift(int partitionCountLowWaterMark, int partitionCountHighWaterMark,
                      float partitionIncreaseThreshold, Set<String> unsafeConfigProperties) {
-    checkArgument(partitionIncreaseThreshold > 0 && partitionIncreaseThreshold <= 1);
-    checkArgument(partitionCountLowWaterMark > 0 && partitionCountHighWaterMark > 0);
+    checkArgument(partitionIncreaseThreshold > 0 && partitionIncreaseThreshold <= 1,
+        "partitionIncreaseThreshold must be in (0, 1]");
+    checkArgument(partitionCountLowWaterMark > 0 && partitionCountHighWaterMark > 0,
+        "water marks must be positive");
+    checkArgument(partitionCountLowWaterMark <= partitionCountHighWaterMark,
+        "partitionCountLowWaterMark must be <= partitionCountHighWaterMark");
     this.partitionCountLowWaterMark = partitionCountLowWaterMark;
     this.partitionCountHighWaterMark = partitionCountHighWaterMark;
     this.partitionIncreaseThreshold = partitionIncreaseThreshold;
-    this.unsafeConfigProperties = checkNotNull(unsafeConfigProperties);;
+    this.unsafeConfigProperties = checkNotNull(unsafeConfigProperties);
   }
 
   public ConfigDrift() {
@@ -94,7 +101,18 @@ public class ConfigDrift {
         if (desired.getConfig().equals(actual.getConfig())) {
           return Result.NO_DRIFT;
         } else {
-          if (Collections.disjoint(desired.getConfig().keySet(), unsafeConfigProperties)) {
+          Set<String> driftedKeys = new HashSet<>();
+          for (Map.Entry<String, String> entry : desired.getConfig().entrySet()) {
+            if (!Objects.equals(entry.getValue(), actual.getConfig().get(entry.getKey()))) {
+              driftedKeys.add(entry.getKey());
+            }
+          }
+          for (String key : actual.getConfig().keySet()) {
+            if (!desired.getConfig().containsKey(key)) {
+              driftedKeys.add(key);
+            }
+          }
+          if (Collections.disjoint(driftedKeys, unsafeConfigProperties)) {
             return Result.SAFE_DRIFT;
           } else {
             return Result.UNSAFE_DRIFT;
